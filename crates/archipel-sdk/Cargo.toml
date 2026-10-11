@@ -8,11 +8,16 @@ rust-version.workspace = true
 repository.workspace = true
 
 [features]
+default = ["app"]
+## `archipel_sdk::app`: run a plugin as a standalone desktop app (eframe window, wgpu or
+## glow). Plugins that only run inside a host can use `default-features = false`.
+app = ["dep:archipel-app"]
 ## `archipel_sdk::testing`: fake host and kit-based view harnesses. Enable it in
 ## `[dev-dependencies]`.
 testing = ["dep:archipel-plugin-testing"]
 
 [dependencies]
+archipel-app = { workspace = true, optional = true }
 archipel-plugin-api.workspace = true
 archipel-plugin-testing = { workspace = true, optional = true }
 archipel-plugin-ui.workspace = true

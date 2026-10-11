@@ -19,7 +19,8 @@ API changes here are API changes for everyone.
 ## Layout
 
 `archipel-command` <- `archipel-plugin-api` <- `archipel-plugin-ui` (+ `archipel-kit`) <-
-`archipel-plugin-testing`; `archipel-sdk` re-exports them. Lower crates never depend on
+`archipel-plugin-testing`; `archipel-app` (standalone host: eframe, keychain, directories) sits on
+`archipel-plugin-ui`; `archipel-sdk` re-exports them. Lower crates never depend on
 higher ones.
 
 ## Required checks

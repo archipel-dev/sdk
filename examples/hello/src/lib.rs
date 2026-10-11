@@ -7,7 +7,7 @@ use archipel_sdk::api::{
     CommandContribution, CommandError, CommandResult, Contributions, EditorContribution,
     EditorTabRequest, MenuLocation, Notification, Plugin, PluginError, PluginHost, PluginManifest,
     SettingField, SettingKind, SettingsPage, StatusWidgetContribution, StatusWidgetState,
-    ToolWindowContribution, Value, ViewContext, ViewFrame, json,
+    ToolWindowContribution, Value, ViewContext, ViewFrame, ViewPlacement, json,
 };
 use archipel_sdk::kit::components::{Button, TextField};
 use archipel_sdk::kit::egui;
@@ -59,12 +59,17 @@ impl HelloPlugin {
         message
     }
 
-    fn main_view(&mut self, ui: &mut egui::Ui, host: &mut dyn PluginHost) {
+    fn main_view(&mut self, view: &ViewContext, ui: &mut egui::Ui, host: &mut dyn PluginHost) {
         ui::header(ui, "Hello", |_| {});
         ui.add(TextField::new(&mut self.name).label("Name"));
         ui.add_space(6.0);
         if ui.add(Button::primary("Say Hello")).clicked() {
             self.say_hello(host);
+        }
+        if matches!(view.placement, ViewPlacement::ToolWindow { .. })
+            && ui.add(Button::secondary("Open in Tab")).clicked()
+        {
+            view.open_editor_tab(host, EditorTabRequest::new("hello.main", "Hello"));
         }
         ui::section(ui, "Statistics");
         ui::property(ui, "Greetings", &self.greetings.to_string());
@@ -160,7 +165,15 @@ impl Plugin for HelloPlugin {
             return;
         };
         match view.view.as_str() {
-            "hello.main" => self.main_view(ui, host),
+            "hello.main" if matches!(view.placement, ViewPlacement::ToolWindow { .. }) => {
+                self.main_view(view, ui, host)
+            }
+            "hello.main" => {
+                // The app window and editor tabs have no panel around the view.
+                egui::Frame::new()
+                    .inner_margin(archipel_sdk::kit::tokens::size::CONTENT_INSET as i8)
+                    .show(ui, |ui| self.main_view(view, ui, host));
+            }
             other => ui::empty_state(ui, "Unknown view", other),
         }
     }
@@ -176,7 +189,6 @@ impl Plugin for HelloPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use archipel_sdk::api::ViewPlacement;
     use archipel_sdk::kit::{Theme, components::Button};
     use archipel_sdk::testing::{
         Fixture, NodeExt, Queryable, RecordingHost, audit, conformance, view_harness,
@@ -248,6 +260,25 @@ mod tests {
         assert_eq!(state.host.statuses, ["Hello, world!!"]);
         assert_eq!(state.host.notifications.len(), 1);
         assert!(harness.query_by_label("Greetings").is_some());
+    }
+
+    #[test]
+    fn the_tool_window_opens_the_view_in_an_editor_tab() {
+        let fixture = Fixture::new(HelloPlugin::new(), ID);
+        let view = ViewContext {
+            placement: ViewPlacement::ToolWindow { id: "hello".into() },
+            ..app_view()
+        };
+        let mut harness = view_harness(Theme::dark(), fixture, view);
+        harness.get_by_label("Open in Tab").click();
+        harness.run();
+        let tabs = &harness.state().host.editor_tabs;
+        assert_eq!(tabs.len(), 1);
+        assert_eq!(tabs[0].view, "hello.main");
+        // The app view is not a tool window, so it has no such button.
+        let fixture = Fixture::new(HelloPlugin::new(), ID);
+        let harness = view_harness(Theme::dark(), fixture, app_view());
+        assert!(harness.query_by_label("Open in Tab").is_none());
     }
 
     #[test]
