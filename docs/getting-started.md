@@ -12,10 +12,10 @@ cargo new --lib my-tool && cd my-tool
 ```toml
 # Cargo.toml
 [dependencies]
-archipel-sdk = "0.1"
+archipel-sdk = { git = "https://github.com/archipel-dev/sdk", tag = "v0.1.0" }
 
 [dev-dependencies]
-archipel-sdk = { version = "0.1", features = ["testing"] }
+archipel-sdk = { git = "https://github.com/archipel-dev/sdk", tag = "v0.1.0", features = ["testing"] }
 ```
 
 `archipel-sdk` is the only dependency you need. It re-exports the plugin API as

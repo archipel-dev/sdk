@@ -36,7 +36,13 @@ View tests need a GPU or `mesa-vulkan-drivers`.
 Commit messages and PR titles are Conventional Commits (`feat`, `fix`, `perf`, `refactor`,
 `docs`, `test`, `chore`, `ci`; `!` for breaking).
 
+## Releases
+
+Semantic releases: release-please keeps a release PR open on main; merging it bumps the
+version, writes `CHANGELOG.md` and tags `v<version>`. Don't bump versions by hand. Apps
+depend on the SDK by git tag; see `docs/versioning.md`.
+
 ## Kit dependency
 
-`archipel-kit` is a git dependency (`[workspace.dependencies]` in `Cargo.toml`). Keep it on
-`branch = "main"` once kit components v0.1 is released.
+`archipel-kit` is a git dependency on `branch = "main"` (`[workspace.dependencies]` in
+`Cargo.toml`).

@@ -27,11 +27,33 @@ not support (`PluginError::UnsupportedApi`).
 The crates of this repository share one version number and follow
 [semver](https://semver.org/). Before 1.0, a minor bump (`0.x`) may break Rust source
 compatibility; a patch bump does not. Bumping `API_VERSION` always comes with a breaking crate
-release. Depend on the facade, `archipel-sdk = "0.1"`, so you get matching crates.
+release. Depend on the facade, `archipel-sdk = { git = "https://github.com/archipel-dev/sdk", tag = "v0.1.0" }`, so you get matching crates.
 
 `archipel-kit` has its own releases; the SDK pins the compatible one and re-exports it as
 `archipel_sdk::kit`. Do not add a second, different `archipel-kit` to your plugin: two
 versions would install two themes.
+
+## Releases and depending on the SDK by git tag
+
+Releases are automatic. Commits follow [Conventional Commits](https://www.conventionalcommits.org/);
+release-please keeps a release PR open on `main` that bumps `[workspace.package] version` in
+`Cargo.toml` and writes `CHANGELOG.md`. Merging it tags `v<version>` and publishes a GitHub
+release. Before 1.0, `feat` and `fix` bump the patch and breaking changes (`!`) bump the minor. Never bump versions by hand.
+
+Until the crates are on crates.io, apps (the IDE, nexus-http, mongo-raabit) and plugins depend
+on the SDK by git tag:
+
+```toml
+[dependencies]
+archipel-sdk = { git = "https://github.com/archipel-dev/sdk", tag = "v0.1.0" }
+```
+
+Pin a tag, never a branch, so a build changes only when you bump the tag. Upgrading is a
+one-line change; read the `CHANGELOG.md` entries in between first, and check whether
+`API_VERSION` changed. An app and the plugins it hosts must use the same SDK tag (or at least
+the same `API_VERSION` and the same `archipel-kit`), otherwise two copies of the crates, and of
+the theme, end up in one binary. `Cargo.lock` records the exact `archipel-kit` commit the SDK
+resolves to.
 
 ## Manifest file names
 
