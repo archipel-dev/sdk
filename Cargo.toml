@@ -1,0 +1,27 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "examples/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0 OR MIT"
+rust-version = "1.91"
+repository = "https://github.com/archipel-dev/sdk"
+
+[workspace.dependencies]
+archipel-command = { version = "0.1.0", path = "crates/archipel-command" }
+archipel-plugin-api = { version = "0.1.0", path = "crates/archipel-plugin-api" }
+archipel-plugin-ui = { version = "0.1.0", path = "crates/archipel-plugin-ui" }
+archipel-plugin-testing = { version = "0.1.0", path = "crates/archipel-plugin-testing" }
+archipel-sdk = { version = "0.1.0", path = "crates/archipel-sdk" }
+# Switch to `branch = "main"` once kit PR #1 (components v0.1) is merged.
+archipel-kit = { git = "https://github.com/archipel-dev/kit", branch = "feat/components-v0.1" }
+egui = "0.33"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+toml = "0.9"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

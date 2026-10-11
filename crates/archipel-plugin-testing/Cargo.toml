@@ -1,0 +1,17 @@
+[package]
+name = "archipel-plugin-testing"
+description = "Test helpers for Archipel plugins: a fake plugin host and kit-based view harnesses (behavior, conformance, audit)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+archipel-kit = { workspace = true, features = ["testing"] }
+archipel-plugin-api.workspace = true
+archipel-plugin-ui.workspace = true
+egui.workspace = true
+
+[lints]
+workspace = true

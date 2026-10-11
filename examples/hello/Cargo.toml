@@ -1,0 +1,18 @@
+[package]
+name = "archipel-plugin-hello"
+description = "Minimal example plugin: a command, a menu item, a kit view, settings and a status widget."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+archipel-sdk.workspace = true
+
+[dev-dependencies]
+archipel-sdk = { workspace = true, features = ["testing"] }
+
+[lints]
+workspace = true
