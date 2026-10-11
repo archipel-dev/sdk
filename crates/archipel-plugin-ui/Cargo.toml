@@ -1,0 +1,16 @@
+[package]
+name = "archipel-plugin-ui"
+description = "egui side of Archipel plugin views, built on Archipel Kit."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+archipel-kit.workspace = true
+archipel-plugin-api.workspace = true
+egui.workspace = true
+
+[lints]
+workspace = true

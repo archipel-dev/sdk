@@ -1,0 +1,21 @@
+[package]
+name = "archipel-sdk"
+description = "The one dependency of an Archipel plugin: plugin API, egui view support and the UI kit."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[features]
+## `archipel_sdk::testing`: fake host and kit-based view harnesses. Enable it in
+## `[dev-dependencies]`.
+testing = ["dep:archipel-plugin-testing"]
+
+[dependencies]
+archipel-plugin-api.workspace = true
+archipel-plugin-testing = { workspace = true, optional = true }
+archipel-plugin-ui.workspace = true
+
+[lints]
+workspace = true

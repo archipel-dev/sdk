@@ -1,0 +1,13 @@
+id = "dev.archipel.hello"
+name = "Hello"
+version = "0.1.0"
+api_version = 1
+kind = "rust"
+vendor = "Archipel"
+license = "Apache-2.0 OR MIT"
+description = "Example plugin showing every contribution point of the plugin API."
+capabilities = ["example"]
+
+[app]
+view = "hello.main"
+title = "Hello"
