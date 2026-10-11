@@ -138,9 +138,33 @@ mod tests {
 ```
 
 Run `cargo test`. Rendering tests need a GPU or a software Vulkan driver; on Ubuntu CI
-install `mesa-vulkan-drivers`.
+install `mesa-vulkan-drivers` ([ready-to-copy CI step](../README.md#view-tests-on-linux-ci)).
 
-## 5. Run it in a host
+## 5. Run it as an app
+
+Give the manifest an `[app]` view (as in step 2) and a second binary, and the plugin runs on its
+own, with theme, settings page, status bar, notifications and a command palette
+(<kbd>Ctrl+Shift+A</kbd>):
+
+```rust,ignore
+// examples/app.rs
+fn main() -> Result<(), archipel_sdk::app::AppError> {
+    archipel_sdk::app::run(
+        my_tool::MyTool::new(),
+        archipel_sdk::app::AppOptions::default(),
+    )
+}
+```
+
+```bash
+cargo run --example app
+```
+
+[standalone-apps.md](standalone-apps.md) lists what the window provides. Try the finished
+example with `cargo run -p hello --example app`. If the window fails to open on a machine with
+a poor GPU stack, run with `ARCHIPEL_RENDERER=glow`.
+
+## 6. Run it in a host
 
 A compiled-in Rust plugin is built into the host: the host's app crate depends on your crate
 and registers `MyTool::new`. Lua and WASM plugins are packed and installed from the host's

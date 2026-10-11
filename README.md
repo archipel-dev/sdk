@@ -18,6 +18,7 @@ archipel-sdk = { git = "https://github.com/archipel-dev/sdk", tag = "v0.1.0", fe
 | [`archipel-plugin-api`](crates/archipel-plugin-api) | `Plugin` trait, contributions, `PluginHost`, manifest, declarative views. No UI toolkit. |
 | [`archipel-command`](crates/archipel-command) | Command types shared by the host and plugins. |
 | [`archipel-plugin-ui`](crates/archipel-plugin-ui) | egui side of plugin views, on [Archipel Kit](https://github.com/archipel-dev/kit); re-exports it as `kit`. |
+| [`archipel-app`](crates/archipel-app) | Standalone host: `archipel_app::run(MyPlugin::new(), AppOptions { .. })` runs any `Plugin` as a desktop app (feature `app` of the facade, on by default). |
 | [`archipel-plugin-testing`](crates/archipel-plugin-testing) | Fake `PluginHost`, view harnesses, kit `audit` and `conformance`. |
 | [`examples/hello`](examples/hello) | A complete minimal plugin with behavior, conformance and audit tests. |
 
@@ -26,6 +27,7 @@ archipel-sdk = { git = "https://github.com/archipel-dev/sdk", tag = "v0.1.0", fe
 - [Write a plugin in 10 minutes](docs/getting-started.md)
 - [API reference](docs/api.md), [Lua plugins](docs/lua.md), [WASM plugins](docs/wasm.md)
 - [Plugin UI](docs/plugin-ui.md)
+- [Standalone apps](docs/standalone-apps.md): run a plugin as a desktop app
 - [Versioning and `api_version`](docs/versioning.md)
 
 The Lua and WASM runtimes live in the IDE; the docs describe the contract they implement.
@@ -39,6 +41,20 @@ cargo test --workspace
 ```
 
 View tests render through wgpu: on Linux install `mesa-vulkan-drivers` (or have a GPU).
+
+### View tests on Linux CI
+
+View tests (`Fixture`, `view_harness`, `audit`, `conformance`) render with wgpu and fail with
+`No adapter found` on a runner without a GPU. Install the software Vulkan driver (lavapipe)
+before `cargo test`. A ready-to-copy GitHub Actions step for `ubuntu-latest`:
+
+```yaml
+      # Software Vulkan driver for the kit-based view tests (wgpu).
+      - run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
+```
+
+Put it before the step that runs `cargo test`. Running the standalone app itself under Xvfb
+needs the same driver (plus `libxkbcommon-x11-0`); the headless `App` smoke tests need neither.
 
 ## License
 

@@ -126,6 +126,21 @@ pub struct ViewContext {
     pub placement: ViewPlacement,
 }
 
+impl ViewContext {
+    /// Opens an editor tab from this view, typically from a tool window.
+    ///
+    /// Does nothing and returns `false` when this view already is the tab `request` names
+    /// (same `key`), so a view that opens "its own" tab never reopens itself. Returns `true`
+    /// when the request was passed to the host.
+    pub fn open_editor_tab(&self, host: &mut dyn PluginHost, request: EditorTabRequest) -> bool {
+        if matches!(&self.placement, ViewPlacement::EditorTab { key, .. } if *key == request.key) {
+            return false;
+        }
+        host.open_editor_tab(request);
+        true
+    }
+}
+
 /// Opaque render target. The egui host passes `&mut egui::Ui`; use
 /// `archipel_plugin_ui::ui(frame)` to get it.
 pub struct ViewFrame<'a> {
@@ -206,6 +221,52 @@ impl EditorTabRequest {
     }
 }
 
+/// Why a secret could not be read or stored.
+#[derive(Debug, Clone, Error, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SecretError {
+    /// The host has no secret storage (the default of [`PluginHost::secret`]).
+    #[error("this host does not support secrets")]
+    Unsupported,
+    /// The manifest does not declare the `secrets` permission.
+    #[error("plugin {0} needs permission `secrets` but its manifest does not declare it")]
+    PermissionDenied(String),
+    /// The keychain or file backend failed.
+    #[error("secret storage failed: {0}")]
+    Backend(String),
+}
+
+/// Handle of a task started with [`PluginHost::begin_task`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct TaskId(pub u64);
+
+/// Progress of a running task.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TaskProgress {
+    /// `Some(0.0..=1.0)` is determinate, `None` indeterminate.
+    pub fraction: Option<f32>,
+    /// Current step, shown next to the title.
+    pub message: Option<String>,
+}
+
+impl TaskProgress {
+    pub fn indeterminate() -> Self {
+        Self::default()
+    }
+
+    pub fn fraction(fraction: f32) -> Self {
+        Self {
+            fraction: Some(fraction.clamp(0.0, 1.0)),
+            message: None,
+        }
+    }
+
+    pub fn message(mut self, message: impl Into<String>) -> Self {
+        self.message = Some(message.into());
+        self
+    }
+}
+
 /// Services the IDE offers to a plugin. Each plugin gets a host scoped to
 /// its id, settings and permissions.
 pub trait PluginHost {
@@ -218,7 +279,9 @@ pub trait PluginHost {
     fn dispatch(&mut self, command: &str, params: Value);
     /// Shows one of this plugin's tool windows.
     fn open_tool_window(&mut self, id: &str);
-    fn open_editor_tab(&mut self, request: EditorTabRequest);
+    /// Opens (or focuses, by `request.key`) an editor tab showing one of this plugin's
+    /// views. The default ignores the request, for hosts without editor tabs.
+    fn open_editor_tab(&mut self, _request: EditorTabRequest) {}
     /// This plugin's setting, or the default declared by a settings page.
     fn setting(&self, key: &str) -> Option<Value>;
     fn set_setting(&mut self, key: &str, value: Value) -> Result<(), PluginError>;
@@ -236,6 +299,28 @@ pub trait PluginHost {
             })
         }
     }
+    /// Reads this plugin's secret `key`. `Ok(None)` when unset. Needs the `secrets`
+    /// permission. The default returns [`SecretError::Unsupported`].
+    fn secret(&self, _key: &str) -> Result<Option<String>, SecretError> {
+        Err(SecretError::Unsupported)
+    }
+    /// Stores a secret in the host's secret storage (the OS keychain in standalone apps).
+    fn set_secret(&mut self, _key: &str, _value: &str) -> Result<(), SecretError> {
+        Err(SecretError::Unsupported)
+    }
+    /// Deletes a secret; deleting an unset key succeeds.
+    fn delete_secret(&mut self, _key: &str) -> Result<(), SecretError> {
+        Err(SecretError::Unsupported)
+    }
+    /// Starts a long-running task shown by the host with a progress indicator. The default
+    /// shows nothing. Call [`PluginHost::end_task`] when it finishes.
+    fn begin_task(&mut self, _title: &str) -> TaskId {
+        TaskId(0)
+    }
+    /// Reports progress of a task from [`PluginHost::begin_task`].
+    fn update_task(&mut self, _task: TaskId, _progress: TaskProgress) {}
+    /// Ends a task, whether it succeeded or not.
+    fn end_task(&mut self, _task: TaskId) {}
     /// Re-reads [`Plugin::contributions`] after the current call.
     fn refresh_contributions(&mut self);
     /// Keeps the UI repainting (e.g. while a request is in flight).

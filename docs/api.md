@@ -14,6 +14,7 @@ crates of this repository:
 | `archipel-command` | (re-exported by `api`) | `CommandSpec`, `CommandError`, `CommandResult` |
 | `archipel-plugin-api` | `api` | engine side, no UI toolkit: `Plugin` trait, `Contributions`, `PluginHost`, `PluginManifest`, `ViewFrame`, declarative `ViewNode`, `testing::RecordingHost` |
 | `archipel-plugin-ui` | `ui`, `kit` | egui side: `ui(frame) -> Option<&mut egui::Ui>`, `EguiView`, `render_node`, kit-based helpers (`header`, `section`, `property`, `empty_state`), and `archipel_kit` as `kit` |
+| `archipel-app` | `app` (feature, default) | standalone host: `run(plugin, AppOptions)`, `App`, `AppHost` ([standalone-apps.md](standalone-apps.md)) |
 | `archipel-plugin-testing` | `testing` (feature) | fake host, `Fixture`, `view_harness`, and `archipel_kit::testing` (`audit`, `conformance`, snapshots) |
 
 The host side lives in the host's own repository and is only described here: the registry
@@ -168,26 +169,76 @@ and returns `ViewEvent`s. Lua and WASM plugins use this model.
 | `plugin_id()`, `project_root()` | |
 | `show_status(msg)`, `notify(Notification::info/error)` | notifications show as balloons |
 | `dispatch(command, params)` | queued; runs after the current call (built-in or contributed commands) |
-| `open_tool_window(id)`, `open_editor_tab(request)` | own views only |
+| `open_tool_window(id)`, `open_editor_tab(request)` | own views only; see [Editor tabs](#editor-tabs) |
 | `setting(key)`, `set_setting(key, value)` | settings-page defaults apply when unset |
 | `data_dir()` | `<config>/plugin-data/<id>`, created on demand |
+| `secret(key)`, `set_secret(key, value)`, `delete_secret(key)` | needs the `secrets` permission; see [Secrets](#secrets) |
+| `begin_task(title)`, `update_task(id, TaskProgress)`, `end_task(id)` | a long-running task with progress, shown by the host (status bar) |
 | `has_permission(p)`, `require_permission(p)` | checks the manifest's `permissions` |
 | `refresh_contributions()` | re-reads `contributions()` after the call |
 | `request_repaint()` | keeps the UI animating while busy |
+
+### Secrets
+
+Passwords, tokens and connection strings belong in the host's secret storage, not in settings
+or the data directory. Declare the permission and use the three methods:
+
+```toml
+permissions = ["secrets"]
+```
+
+```rust,ignore
+fn connect(&mut self, host: &mut dyn PluginHost) -> Result<(), SecretError> {
+    host.set_secret("mongo.password", &self.password)?;      // overwrites
+    let stored: Option<String> = host.secret("mongo.password")?; // Ok(None) when unset
+    host.delete_secret("mongo.password")?;                    // fine when unset
+    Ok(())
+}
+```
+
+Keys are scoped to the plugin. Errors are a `SecretError`: `Unsupported` (the default of all
+three methods, for hosts without secret storage, so adding them is not a breaking change),
+`PermissionDenied` (the manifest lacks `secrets`) and `Backend(message)` (keychain or file
+failure). Handle `Unsupported` by asking again each session or by not offering "remember me".
+
+The standalone host ([standalone-apps.md](standalone-apps.md#secrets)) uses the OS keychain with
+an owner-only file as fallback; `RecordingHost` keeps secrets in memory (`host.secrets`) and
+enforces the permission, so tests can cover both paths.
+
+### Editor tabs
+
+`host.open_editor_tab(EditorTabRequest::new(view, title).key(key).path(path))` opens a tab
+that shows one of the plugin's views with `ViewPlacement::EditorTab { key, path }`; a request
+with the key of an open tab focuses it. A tool window typically opens the detail of an item:
+
+```rust,ignore
+if ui.add(ListRow::new(&request.name)).double_clicked() {
+    view.open_editor_tab(
+        host,
+        EditorTabRequest::new("nexus.request", &request.name).key(format!("request:{}", request.id)),
+    );
+}
+```
+
+`ViewContext::open_editor_tab(host, request)` is the same call, but does nothing and returns
+`false` when the view already is the requested tab, so a shared view never reopens itself. The
+default of `PluginHost::open_editor_tab` ignores the request, for hosts without editor tabs.
+`RecordingHost` records requests in `host.editor_tabs`.
 
 ## Testing
 
 `archipel_sdk::testing` (feature `testing`) has everything to test a plugin without a host:
 
 - `RecordingHost` (also `archipel_sdk::api::testing::RecordingHost`) records statuses,
-  notifications, dispatched commands, opened views and tabs; it holds settings and
-  permissions in memory, and `DataDir` gives it a temporary data directory.
+  notifications, dispatched commands, opened views and tabs, tasks; it holds settings,
+  secrets and permissions in memory, and `DataDir` gives it a temporary data directory.
 - `Fixture` and `view_harness` render a view in a themed kit harness. Find widgets by role
   and visible label, click, type, and assert on `harness.state()`.
 - `audit(&mut harness).assert_clean()` checks the view for unnamed controls, tiny targets,
   overlaps and unreachable focus; `conformance(label, ..)` runs the kit's component battery.
 
-Rendering uses wgpu: on Linux CI install `mesa-vulkan-drivers`. See the tests in
+Rendering uses wgpu: on Linux CI install `mesa-vulkan-drivers` (see the
+[README](../README.md#view-tests-on-linux-ci) for a ready-to-copy step). See the tests in
 [`examples/hello`](../examples/hello/src/lib.rs).
 
 ## Host commands and packaging (Archipel IDE)
@@ -234,6 +285,9 @@ its directory. Bundled and project plugins cannot be uninstalled, and an archive
 bundled plugin's id.
 
 ### Standalone app mode
+
+Outside the IDE, `archipel_sdk::app::run(plugin, AppOptions)` runs a plugin as its own app:
+see [standalone-apps.md](standalone-apps.md).
 
 The IDE's `--app <plugin-id>` (or `--app=<id>`) opens a window that contains only the
 plugin's `[app]` view, with a title bar, window controls, status text, the plugin's
