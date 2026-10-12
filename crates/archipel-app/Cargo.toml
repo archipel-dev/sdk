@@ -24,6 +24,7 @@ wgpu = { version = "27", default-features = false, features = ["vulkan", "gles",
 
 [dev-dependencies]
 archipel-plugin-api = { workspace = true }
+archipel-plugin-testing = { workspace = true }
 
 [lints]
 workspace = true
