@@ -46,6 +46,7 @@ manifest):
 | `dirs_root` | platform directories | keep data, config and cache below one directory (portable installs, tests) |
 | `secrets` | `SecretBackend::Auto` | `File` skips the OS keychain |
 | `renderer` | `ARCHIPEL_RENDERER`, else wgpu | `Renderer::Wgpu` or `Renderer::Glow` |
+| `icon` | platform default | window and taskbar icon; set it from a PNG with `AppOptions::new(..).with_icon_png(include_bytes!("icon-256.png")).expect("bundled icon")` |
 
 ## Renderer
 

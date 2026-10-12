@@ -48,6 +48,7 @@ pub use secrets::{SecretBackend, SecretStore};
 pub use settings::SettingsStore;
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Environment variable that picks the renderer: `wgpu` (default) or `glow`.
@@ -142,6 +143,9 @@ pub struct AppOptions {
     pub secrets: SecretBackend,
     /// Overrides `ARCHIPEL_RENDERER`.
     pub renderer: Option<Renderer>,
+    /// Window and taskbar icon; the platform's default when `None`. See
+    /// [`AppOptions::with_icon_png`].
+    pub icon: Option<Arc<egui::IconData>>,
 }
 
 impl Default for AppOptions {
@@ -156,6 +160,7 @@ impl Default for AppOptions {
             dirs_root: None,
             secrets: SecretBackend::Auto,
             renderer: None,
+            icon: None,
         }
     }
 }
@@ -168,10 +173,22 @@ impl AppOptions {
             ..Self::default()
         }
     }
+
+    /// Sets the window icon from PNG bytes, typically `include_bytes!` of a 256 or 512 px
+    /// square image with a transparent background.
+    ///
+    /// # Errors
+    /// The bytes are not a PNG the decoder understands.
+    pub fn with_icon_png(mut self, png: &[u8]) -> Result<Self, String> {
+        let icon = eframe::icon_data::from_png_bytes(png)
+            .map_err(|error| format!("app icon is not a valid PNG: {error}"))?;
+        self.icon = Some(Arc::new(icon));
+        Ok(self)
+    }
 }
 
-/// The eframe options for `options`: window geometry, app id, renderer, and the window chrome
-/// of the main toolbar ([`CHROME`]: on macOS the toolbar replaces the title bar).
+/// The eframe options for `options`: window geometry, app id, icon, renderer, and the window
+/// chrome of the main toolbar ([`CHROME`]: on macOS the toolbar replaces the title bar).
 pub fn native_options(
     options: &AppOptions,
     title: &str,
@@ -183,6 +200,9 @@ pub fn native_options(
         .with_min_inner_size(options.min_size);
     if !options.id.is_empty() {
         viewport = viewport.with_app_id(options.id.clone());
+    }
+    if let Some(icon) = &options.icon {
+        viewport = viewport.with_icon(Arc::clone(icon));
     }
     eframe::NativeOptions {
         viewport: CHROME.viewport(viewport),
@@ -266,6 +286,39 @@ mod tests {
             assert_eq!(native.viewport.fullsize_content_view, Some(true));
             assert_eq!(native.viewport.titlebar_shown, Some(false));
             assert_eq!(native.viewport.title_shown, Some(false));
+        }
+    }
+
+    /// A 2×1 RGBA PNG: one opaque red pixel, one transparent pixel.
+    fn tiny_png() -> Vec<u8> {
+        let image = eframe::icon_data::IconDataExt::to_png_bytes(&egui::IconData {
+            rgba: vec![255, 0, 0, 255, 0, 0, 0, 0],
+            width: 2,
+            height: 1,
+        });
+        image.expect("encodes")
+    }
+
+    #[test]
+    fn the_icon_png_reaches_the_viewport() {
+        let native = native_options(&AppOptions::default(), "T", Renderer::Glow);
+        assert!(native.viewport.icon.is_none());
+
+        let options = AppOptions::default().with_icon_png(&tiny_png()).unwrap();
+        let icon = options.icon.as_deref().expect("icon set");
+        assert_eq!((icon.width, icon.height), (2, 1));
+        assert_eq!(icon.rgba, [255, 0, 0, 255, 0, 0, 0, 0]);
+
+        let native = native_options(&options, "T", Renderer::Glow);
+        let applied = native.viewport.icon.expect("viewport icon");
+        assert_eq!(*applied, *icon);
+    }
+
+    #[test]
+    fn an_invalid_icon_png_is_an_error_not_a_panic() {
+        for bytes in [&b""[..], b"not a png", &tiny_png()[..20]] {
+            let error = AppOptions::default().with_icon_png(bytes).unwrap_err();
+            assert!(error.contains("PNG"), "{error}");
         }
     }
 
