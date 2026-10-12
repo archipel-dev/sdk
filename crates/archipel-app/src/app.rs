@@ -173,7 +173,7 @@ impl App {
         self.app_menu
     }
 
-    /// Titles of the open editor tabs (and the settings tab).
+    /// Titles of the open editor tabs.
     pub fn tab_titles(&self) -> Vec<&str> {
         self.tabs.iter().map(|tab| tab.title.as_str()).collect()
     }
@@ -738,7 +738,7 @@ pub fn palette_button() -> IconButton {
     IconButton::new(Glyph::Search, "Command Palette").large(true)
 }
 
-/// Opens the settings tab.
+/// Opens the modal Settings dialog.
 pub fn settings_button() -> IconButton {
     IconButton::new(Glyph::Settings, "Settings").large(true)
 }
