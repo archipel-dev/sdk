@@ -52,6 +52,9 @@ impl Palette {
         if !self.open {
             return None;
         }
+        // The click that opened the palette (a toolbar button, a menu item) is still in this
+        // frame's input: it is not a click outside.
+        let opening = self.just_opened;
         let matches = filter(entries, &self.query);
         let (up, down, enter, escape) = ctx.input_mut(|input| {
             (
@@ -122,13 +125,14 @@ impl Palette {
                             });
                     });
             });
-        let clicked_outside = ctx.input(|input| {
-            input.pointer.any_pressed()
-                && input
-                    .pointer
-                    .interact_pos()
-                    .is_some_and(|pos| !area.response.rect.contains(pos))
-        });
+        let clicked_outside = !opening
+            && ctx.input(|input| {
+                input.pointer.any_pressed()
+                    && input
+                        .pointer
+                        .interact_pos()
+                        .is_some_and(|pos| !area.response.rect.contains(pos))
+            });
         if clicked_outside {
             self.close();
             return None;

@@ -36,7 +36,9 @@ mod secrets;
 mod settings;
 mod settings_ui;
 
-pub use app::{App, CMD_PALETTE, CMD_QUIT, CMD_SETTINGS};
+pub use app::{
+    App, CHROME, CMD_PALETTE, CMD_QUIT, CMD_SETTINGS, app_widget, palette_button, settings_button,
+};
 pub use archipel_plugin_api::{self as api, Plugin, PluginHost};
 pub use dirs::AppDirs;
 pub use host::{AppHost, TaskEntry, ToastEntry};
@@ -185,7 +187,8 @@ impl AppOptions {
     }
 }
 
-/// The eframe options for `options`: window geometry, app id, icon and renderer.
+/// The eframe options for `options`: window geometry, app id, icon, renderer, and the window
+/// chrome of the main toolbar ([`CHROME`]: on macOS the toolbar replaces the title bar).
 pub fn native_options(
     options: &AppOptions,
     title: &str,
@@ -202,7 +205,7 @@ pub fn native_options(
         viewport = viewport.with_icon(Arc::clone(icon));
     }
     eframe::NativeOptions {
-        viewport,
+        viewport: CHROME.viewport(viewport),
         renderer: renderer.eframe(),
         ..Default::default()
     }
@@ -212,6 +215,9 @@ struct Shell(App);
 
 impl eframe::App for Shell {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // On macOS: the traffic lights centered in the toolbar and the window's backing in
+        // the theme's frame color (again after a resize relayout). The title names the window.
+        CHROME.align_native_controls(self.0.title(), ctx);
         self.0.update(ctx);
     }
 
@@ -260,6 +266,27 @@ mod tests {
         assert!(matches!(native.renderer, eframe::Renderer::Glow));
         let native = native_options(&AppOptions::default(), "T", Renderer::Wgpu);
         assert!(matches!(native.renderer, eframe::Renderer::Wgpu));
+        // The main toolbar's chrome: on macOS it takes the title bar's place.
+        let integrated = CHROME.viewport(egui::ViewportBuilder::default());
+        assert_eq!(
+            CHROME,
+            archipel_plugin_ui::kit::components::WindowChrome::Integrated
+        );
+        assert_eq!(
+            native.viewport.fullsize_content_view,
+            integrated.fullsize_content_view
+        );
+        assert_eq!(native.viewport.titlebar_shown, integrated.titlebar_shown);
+        assert_eq!(native.viewport.title_shown, integrated.title_shown);
+        assert_eq!(
+            native.viewport.min_inner_size,
+            Some(egui::vec2(760.0, 480.0))
+        );
+        if cfg!(target_os = "macos") {
+            assert_eq!(native.viewport.fullsize_content_view, Some(true));
+            assert_eq!(native.viewport.titlebar_shown, Some(false));
+            assert_eq!(native.viewport.title_shown, Some(false));
+        }
     }
 
     /// A 2×1 RGBA PNG: one opaque red pixel, one transparent pixel.

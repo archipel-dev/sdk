@@ -11,8 +11,10 @@ use archipel_plugin_api::{
     ToolWindowContribution, Value, ViewContext, ViewFrame, ViewPlacement,
 };
 use archipel_plugin_ui::kit::components::{
-    Button, EmptyState, IconButton, Panel, ProgressBar, Severity, Tab, TabBar, Toast,
+    Avatar, Button, EmptyState, IconButton, MenuItem, MenuSeparator, Panel, ProgressBar, Severity,
+    Tab, TabBar, Toast, ToolbarButton, WindowChrome, WindowToolbar,
 };
+use archipel_plugin_ui::kit::parts::{Popover, Slot};
 use archipel_plugin_ui::kit::{self, Glyph, Theme, tokens};
 use archipel_plugin_ui::{empty_state, muted};
 use egui::{Context, Ui};
@@ -23,6 +25,13 @@ pub const CMD_PALETTE: &str = "app.commandPalette";
 pub const CMD_SETTINGS: &str = "app.settings";
 pub const CMD_QUIT: &str = "app.quit";
 const CMD_TOOL_WINDOW: &str = "app.toolWindow.";
+
+/// How the window meets the native title bar: on macOS the main toolbar takes the title
+/// bar's place and holds the traffic lights; elsewhere the native decorations stay.
+pub const CHROME: WindowChrome = WindowChrome::Integrated;
+
+/// Width of the app menu under the app widget.
+const APP_MENU_WIDTH: f32 = 240.0;
 
 /// How many chained `dispatch` calls run in one frame before the rest waits for the next.
 const MAX_DISPATCH_PER_FRAME: usize = 64;
@@ -52,6 +61,8 @@ pub struct App {
     user_keymap: std::path::PathBuf,
     extra_bindings: Vec<(String, String)>,
     palette: Palette,
+    /// The app widget's menu is open.
+    app_menu: bool,
     settings_view: SettingsView,
     open_tool_windows: Vec<String>,
     tabs: Vec<OpenTab>,
@@ -113,6 +124,7 @@ impl App {
             user_keymap,
             extra_bindings: options.keybindings,
             palette: Palette::default(),
+            app_menu: false,
             settings_view: SettingsView::default(),
             open_tool_windows: Vec::new(),
             tabs: Vec::new(),
@@ -148,6 +160,11 @@ impl App {
 
     pub fn palette_open(&self) -> bool {
         self.palette.is_open()
+    }
+
+    /// Whether the app widget's menu (in the main toolbar) is open.
+    pub fn app_menu_open(&self) -> bool {
+        self.app_menu
     }
 
     /// Titles of the open editor tabs (and the settings tab).
@@ -344,6 +361,7 @@ impl App {
             self.drain_requests(ctx);
         }
 
+        self.main_toolbar(ctx);
         self.status_bar(ctx);
         self.tool_windows(ctx, running);
         self.central(ctx, running);
@@ -383,6 +401,69 @@ impl App {
                 break;
             };
             self.run_command(ctx, &command, params);
+        }
+    }
+
+    /// The main toolbar, like Android Studio's: the app widget (its tile, name and menu with
+    /// the app's own commands) on the left; Settings and the command palette on the right.
+    fn main_toolbar(&mut self, ctx: &Context) {
+        let has_settings = !self.contributions.settings_pages.is_empty();
+        let mut command: Option<&'static str> = None;
+        let title = self.title.clone();
+        let palette_shortcut = self.keymap.shortcut_of(CMD_PALETTE);
+        let settings_shortcut = self.keymap.shortcut_of(CMD_SETTINGS);
+        let quit_shortcut = self.keymap.shortcut_of(CMD_QUIT);
+        let mut menu = self.app_menu;
+        WindowToolbar::new("archipel-main-toolbar")
+            .chrome(CHROME)
+            .project_color(kit::theme::avatar_color(&title))
+            .show(ctx, |ui| {
+                let button = app_widget(&title, menu).show(ui);
+                if button.clicked() {
+                    menu = !menu;
+                }
+                let closed = Popover::below("archipel-app-menu", &button)
+                    .width(APP_MENU_WIDTH)
+                    .show(ui.ctx(), &mut menu, |ui| {
+                        let item = |label: &str, icon: Glyph, shortcut: &Option<String>| {
+                            let item = MenuItem::new(label).icon(icon);
+                            match shortcut {
+                                Some(shortcut) => item.shortcut(shortcut.as_str()),
+                                None => item,
+                            }
+                        };
+                        if ui
+                            .add(item("Command Palette…", Glyph::Search, &palette_shortcut))
+                            .clicked()
+                        {
+                            command = Some(CMD_PALETTE);
+                        }
+                        if has_settings
+                            && ui
+                                .add(item("Settings…", Glyph::Settings, &settings_shortcut))
+                                .clicked()
+                        {
+                            command = Some(CMD_SETTINGS);
+                        }
+                        ui.add(MenuSeparator);
+                        if ui.add(item("Quit", Glyph::Close, &quit_shortcut)).clicked() {
+                            command = Some(CMD_QUIT);
+                        }
+                        command.is_some()
+                    });
+                menu = menu && !closed.unwrap_or(false);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.add(palette_button()).clicked() {
+                        command = Some(CMD_PALETTE);
+                    }
+                    if has_settings && ui.add(settings_button()).clicked() {
+                        command = Some(CMD_SETTINGS);
+                    }
+                });
+            });
+        self.app_menu = menu;
+        if let Some(command) = command {
+            self.run_command(ctx, command, Value::Null);
         }
     }
 
@@ -469,7 +550,9 @@ impl App {
         let mut closed = Vec::new();
         for window in windows {
             let id = egui::Id::new(("archipel-tool-window", &window.id));
+            let title = &self.title;
             let mut body = |ui: &mut Ui| {
+                frame_glow(ui, title);
                 let mut close = false;
                 Panel::new(window.title.as_str())
                     .actions(|ui| {
@@ -523,6 +606,7 @@ impl App {
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(colors.frame))
             .show(ctx, |ui| {
+                frame_glow(ui, &self.title);
                 if let Some(message) = &self.failed {
                     EmptyState::new("The plugin failed to start")
                         .hint(message.as_str())
@@ -614,4 +698,33 @@ fn render_view(plugin: &mut dyn Plugin, host: &mut AppHost, view: &ViewContext, 
     if ui.min_rect().height() < 1.0 {
         empty_state(ui, "Nothing to show", &view.view);
     }
+}
+
+/// The app widget of the main toolbar: the app's tile (its initials on its color), its name
+/// and a chevron, like Android Studio's project widget.
+pub fn app_widget(title: &str, open: bool) -> ToolbarButton<'static> {
+    let tile = title.to_owned();
+    ToolbarButton::new(title)
+        .leading(Slot::ui_width(tokens::toolbar::ICON, move |ui| {
+            ui.add(Avatar::new(tile).size(tokens::toolbar::ICON));
+        }))
+        .dropdown(true)
+        .open(open)
+}
+
+/// Opens the command palette (Android Studio's Search Everywhere place).
+pub fn palette_button() -> IconButton {
+    IconButton::new(Glyph::Search, "Command Palette").large(true)
+}
+
+/// Opens the settings tab.
+pub fn settings_button() -> IconButton {
+    IconButton::new(Glyph::Settings, "Settings").large(true)
+}
+
+/// Continues the toolbar's glow over the frame of a panel below it, as Android Studio's
+/// does over its stripes: every part anchors it to the window, so they meet seamlessly.
+fn frame_glow(ui: &Ui, title: &str) {
+    let window = ui.ctx().input(|i| i.viewport_rect());
+    kit::parts::project_glow(ui.painter(), window, kit::theme::avatar_color(title));
 }
