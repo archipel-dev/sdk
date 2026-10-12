@@ -196,6 +196,9 @@ impl App {
 
     /// Runs `command`: a built-in of the shell or one of the plugin's. Errors become toasts.
     pub fn run_command(&mut self, ctx: &Context, command: &str, params: Value) {
+        // Palette picks happen after the central view has painted this frame.
+        self.host.requests.repaint = true;
+        ctx.request_repaint();
         if command == CMD_PALETTE {
             self.palette.toggle();
         } else if command == CMD_SETTINGS {
@@ -381,6 +384,9 @@ impl App {
 
     fn drain_requests(&mut self, ctx: &Context) {
         for _ in 0..MAX_DISPATCH_PER_FRAME {
+            if std::mem::take(&mut self.host.requests.focus_app) {
+                self.current = None;
+            }
             if self.host.requests.contributions_changed {
                 self.host.requests.contributions_changed = false;
                 self.set_contributions(self.plugin.contributions());

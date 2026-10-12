@@ -46,6 +46,7 @@ pub(crate) struct Requests {
     pub tabs: Vec<EditorTabRequest>,
     pub contributions_changed: bool,
     pub repaint: bool,
+    pub focus_app: bool,
 }
 
 /// The services a standalone app offers its plugin: per-app directories, TOML settings,
@@ -164,6 +165,14 @@ impl AppHost {
 }
 
 impl PluginHost for AppHost {
+    fn is_standalone(&self) -> bool {
+        true
+    }
+
+    fn focus_app_view(&mut self) {
+        self.requests.focus_app = true;
+        self.requests.repaint = true;
+    }
     fn plugin_id(&self) -> &str {
         &self.id
     }

@@ -68,6 +68,10 @@ impl Plugin for Probe {
                 host.open_editor_tab(EditorTabRequest::new("probe.doc", "Doc").key("doc"));
                 Ok(Value::Null)
             }
+            "probe.home" => {
+                host.focus_app_view();
+                Ok(Value::Null)
+            }
             "probe.task" => {
                 let id = host.begin_task("Work");
                 host.update_task(id, TaskProgress::fraction(0.25));
@@ -125,11 +129,11 @@ fn key(key: Key, modifiers: Modifiers) -> Vec<Event> {
 }
 
 const CTRL_SHIFT: Modifiers = Modifiers {
-    ctrl: true,
+    ctrl: !cfg!(target_os = "macos"),
     shift: true,
     command: true,
     alt: false,
-    mac_cmd: false,
+    mac_cmd: cfg!(target_os = "macos"),
 };
 
 #[test]
@@ -194,8 +198,9 @@ fn plugin_keybindings_tool_windows_and_errors() {
     frames(&mut app, &ctx, 3, vec![]);
 
     let ctrl_alt = Modifiers {
-        ctrl: true,
+        ctrl: !cfg!(target_os = "macos"),
         alt: true,
+        mac_cmd: cfg!(target_os = "macos"),
         command: true,
         ..Modifiers::NONE
     };
@@ -208,6 +213,10 @@ fn plugin_keybindings_tool_windows_and_errors() {
 
     app.run_command(&ctx, "app.toolWindow.side", Value::Null);
     assert_eq!(app.open_tool_windows(), ["side"]);
+    assert!(
+        app.wants_repaint(),
+        "a built-in command schedules its visible effect"
+    );
     frames(&mut app, &ctx, 2, vec![]);
     app.run_command(&ctx, "app.toolWindow.side", Value::Null);
     assert!(app.open_tool_windows().is_empty());
@@ -220,7 +229,9 @@ fn plugin_keybindings_tool_windows_and_errors() {
     assert_eq!(app.host().tasks().len(), 1);
     frames(&mut app, &ctx, 2, vec![]);
 
+    assert!(app.host().is_standalone());
     app.run_command(&ctx, "app.settings", Value::Null);
+    assert!(app.wants_repaint());
     assert_eq!(app.tab_titles(), ["Doc", "Settings"]);
     frames(&mut app, &ctx, 2, vec![]);
     let _ = std::fs::remove_dir_all(root);
@@ -242,5 +253,37 @@ fn a_failing_activation_is_reported_not_fatal() {
         "{:?}",
         app.failure()
     );
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn a_plugin_can_return_from_settings_to_its_main_view() {
+    let (options, root) = options("focus-main");
+    let mut app = App::new(Probe::new(true), options).unwrap();
+    let ctx = egui::Context::default();
+    frames(&mut app, &ctx, 3, vec![]);
+    app.run_command(&ctx, "app.settings", Value::Null);
+    frames(&mut app, &ctx, 2, vec![]);
+    assert_eq!(app.tab_titles(), ["Settings"]);
+    app.run_command(&ctx, "probe.home", Value::Null);
+    assert!(app.wants_repaint());
+    frames(&mut app, &ctx, 2, vec![]);
+    let output = ctx.run(RawInput::default(), |ctx| app.update(ctx));
+    let labels: Vec<_> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| {
+            if let egui::epaint::Shape::Text(text) = &shape.shape {
+                Some(text.galley.text())
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert!(
+        labels.contains(&"probe.main"),
+        "the main view is painted again"
+    );
+    assert_eq!(app.tab_titles(), ["Settings"], "settings remain open");
     let _ = std::fs::remove_dir_all(root);
 }

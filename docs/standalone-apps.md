@@ -141,3 +141,15 @@ assert_eq!(app.host().status(), "1 clicks");
 
 Key presses need a press and a release event, because egui reports a second press of a key that
 is still down as a repeat.
+
+## Commands for embedded workbenches
+
+`host.is_standalone()` distinguishes an application window from an IDE host. A plugin
+whose app view already contains its tool islands should reveal those islands in its
+commands and omit duplicate host tool-window contributions after activation. In an IDE,
+keep using `open_tool_window` and `open_editor_tab`.
+
+Call `host.focus_app_view()` when a command reveals an embedded island: this returns from
+a Settings or editor tab to the main app view without closing the host tabs. Hosts without
+an app view ignore this request. Commands schedule a repaint, including picks made after
+the central view has already painted.
