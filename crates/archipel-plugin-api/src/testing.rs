@@ -12,6 +12,8 @@ use std::path::{Path, PathBuf};
 pub struct RecordingHost {
     pub id: String,
     pub project: Option<PathBuf>,
+    /// Simulate a standalone application host (false by default).
+    pub standalone: bool,
     pub permissions: Vec<Permission>,
     pub statuses: Vec<String>,
     pub notifications: Vec<Notification>,
@@ -28,6 +30,7 @@ pub struct RecordingHost {
     pub data: Option<PathBuf>,
     pub contribution_refreshes: usize,
     pub repaints: usize,
+    pub app_focuses: usize,
 }
 
 impl RecordingHost {
@@ -55,6 +58,13 @@ impl RecordingHost {
 }
 
 impl PluginHost for RecordingHost {
+    fn is_standalone(&self) -> bool {
+        self.standalone
+    }
+
+    fn focus_app_view(&mut self) {
+        self.app_focuses += 1;
+    }
     fn plugin_id(&self) -> &str {
         &self.id
     }

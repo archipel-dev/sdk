@@ -271,6 +271,14 @@ impl TaskProgress {
 /// its id, settings and permissions.
 pub trait PluginHost {
     fn plugin_id(&self) -> &str;
+    /// Whether this host runs the plugin as its own application window.
+    /// Plugins can reveal embedded islands instead of opening duplicate host panels.
+    fn is_standalone(&self) -> bool {
+        false
+    }
+    /// Focuses the main application view, leaving host editor/settings tabs open.
+    /// Hosts without a main application view may ignore this request.
+    fn focus_app_view(&mut self) {}
     fn project_root(&self) -> Option<&Path>;
     /// Short message in the status bar.
     fn show_status(&mut self, message: &str);

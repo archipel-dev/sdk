@@ -181,10 +181,13 @@ mod tests {
         let (mut keymap, problems) = Keymap::from_contributions(&contributions);
         assert_eq!(problems.len(), 1);
         keymap.bind_str("Mod+K", "a.two").unwrap();
-        assert_eq!(
-            keymap.command_for(egui::Key::K, mods(true, false, false)),
-            Some("a.two")
-        );
+        let primary = egui::Modifiers {
+            ctrl: !cfg!(target_os = "macos"),
+            mac_cmd: cfg!(target_os = "macos"),
+            command: true,
+            ..egui::Modifiers::NONE
+        };
+        assert_eq!(keymap.command_for(egui::Key::K, primary), Some("a.two"));
 
         let path =
             std::env::temp_dir().join(format!("archipel-keymap-{}.toml", std::process::id()));
@@ -195,15 +198,19 @@ mod tests {
         .unwrap();
         let problems = keymap.apply_user_file(&path);
         assert_eq!(problems.len(), 1);
-        assert_eq!(
-            keymap.command_for(egui::Key::K, mods(true, false, false)),
-            None
-        );
+        assert_eq!(keymap.command_for(egui::Key::K, primary), None);
         assert_eq!(
             keymap.command_for(egui::Key::J, mods(false, false, true)),
             Some("a.three")
         );
-        assert_eq!(keymap.shortcut_of("a.three").as_deref(), Some("Alt+J"));
+        assert_eq!(
+            keymap.shortcut_of("a.three").as_deref(),
+            Some(if cfg!(target_os = "macos") {
+                "⌥J"
+            } else {
+                "Alt+J"
+            })
+        );
         assert_eq!(keymap.shortcut_of("a.two"), None);
         let _ = std::fs::remove_file(path);
         assert!(
