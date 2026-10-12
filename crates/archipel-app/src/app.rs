@@ -11,8 +11,8 @@ use archipel_plugin_api::{
     ToolWindowContribution, Value, ViewContext, ViewFrame, ViewPlacement,
 };
 use archipel_plugin_ui::kit::components::{
-    Avatar, Button, EmptyState, IconButton, MenuItem, MenuSeparator, Panel, ProgressBar, Severity,
-    Tab, TabBar, Toast, ToolbarButton, WindowChrome, WindowToolbar,
+    Avatar, Button, Dialog, EmptyState, IconButton, MenuItem, MenuSeparator, Panel, ProgressBar,
+    Severity, Tab, TabBar, Toast, ToolbarButton, WindowChrome, WindowToolbar,
 };
 use archipel_plugin_ui::kit::parts::{Popover, Slot};
 use archipel_plugin_ui::kit::{self, Glyph, Theme, tokens};
@@ -39,7 +39,6 @@ const MAX_DISPATCH_PER_FRAME: usize = 64;
 #[derive(Debug, Clone, PartialEq)]
 enum TabKind {
     Editor(EditorTabRequest),
-    Settings,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -64,6 +63,7 @@ pub struct App {
     /// The app widget's menu is open.
     app_menu: bool,
     settings_view: SettingsView,
+    settings_open: bool,
     open_tool_windows: Vec<String>,
     tabs: Vec<OpenTab>,
     /// `None`: the app view; `Some(i)`: `tabs[i]`.
@@ -126,6 +126,7 @@ impl App {
             palette: Palette::default(),
             app_menu: false,
             settings_view: SettingsView::default(),
+            settings_open: false,
             open_tool_windows: Vec::new(),
             tabs: Vec::new(),
             current: None,
@@ -156,6 +157,11 @@ impl App {
 
     pub fn keymap(&self) -> &Keymap {
         &self.keymap
+    }
+
+    /// Whether the modal Settings dialog is open.
+    pub fn settings_open(&self) -> bool {
+        self.settings_open
     }
 
     pub fn palette_open(&self) -> bool {
@@ -250,11 +256,8 @@ impl App {
                 .notify(Notification::info("Settings", "This app has no settings."));
             return;
         }
-        self.open_tab(OpenTab {
-            key: "app.settings".into(),
-            title: "Settings".into(),
-            kind: TabKind::Settings,
-        });
+        self.palette.close();
+        self.settings_open = true;
     }
 
     fn open_tab(&mut self, tab: OpenTab) {
@@ -356,6 +359,7 @@ impl App {
         let running = frame >= 1 && self.failed.is_none();
         if running {
             if let Some(command) = self.pressed_command(ctx)
+                && !self.settings_open
                 && (!self.palette.is_open() || command == CMD_PALETTE)
             {
                 self.run_command(ctx, &command, Value::Null);
@@ -372,6 +376,7 @@ impl App {
         if let Some(command) = self.palette.show(ctx, &entries) {
             self.run_command(ctx, &command, Value::Null);
         }
+        self.settings_dialog(ctx);
         self.toasts(ctx);
 
         if frame == 0 || self.wants_repaint() {
@@ -624,13 +629,11 @@ impl App {
                 }
                 if !self.tabs.is_empty() {
                     let mut tabs = vec![Tab::new(self.title.as_str())];
-                    tabs.extend(self.tabs.iter().map(|t| {
-                        let mut tab = Tab::new(t.title.as_str()).closable(true);
-                        if matches!(t.kind, TabKind::Settings) {
-                            tab = tab.icon(kit::Icon::from(Glyph::Settings));
-                        }
-                        tab
-                    }));
+                    tabs.extend(
+                        self.tabs
+                            .iter()
+                            .map(|t| Tab::new(t.title.as_str()).closable(true)),
+                    );
                     let selected = self.current.map_or(0, |i| i + 1);
                     let out = TabBar::new(&tabs, selected).show(ui);
                     if let Some(index) = out.selected {
@@ -651,13 +654,6 @@ impl App {
                 match self.current.and_then(|i| self.tabs.get(i)).cloned() {
                     None => render_view(self.plugin.as_mut(), &mut self.host, &self.app_view, ui),
                     Some(OpenTab {
-                        kind: TabKind::Settings,
-                        ..
-                    }) => {
-                        let pages = self.contributions.settings_pages.clone();
-                        self.settings_view.show(ui, &pages, &mut self.host);
-                    }
-                    Some(OpenTab {
                         kind: TabKind::Editor(request),
                         ..
                     }) => {
@@ -672,6 +668,25 @@ impl App {
                     }
                 }
             });
+    }
+
+    fn settings_dialog(&mut self, ctx: &Context) {
+        if !self.settings_open {
+            return;
+        }
+        let pages = &self.contributions.settings_pages;
+        let width =
+            (ctx.content_rect().width() - 2.0 * tokens::size::CONTENT_INSET).clamp(0.0, 640.0);
+        let action = Dialog::new("Settings")
+            .icon(Glyph::Settings)
+            .width(width)
+            .primary("Close")
+            .content(|ui| self.settings_view.show(ui, pages, &mut self.host))
+            .show(ctx);
+        if action.is_some() {
+            self.settings_open = false;
+            ctx.request_repaint();
+        }
     }
 
     fn toasts(&mut self, ctx: &Context) {

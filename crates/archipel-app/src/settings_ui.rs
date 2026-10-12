@@ -25,21 +25,17 @@ impl SettingsView {
     pub fn show(&mut self, ui: &mut Ui, pages: &[SettingsPage], host: &mut dyn PluginHost) {
         let inset = size::CONTENT_INSET as i8;
         egui::Frame::new().inner_margin(inset).show(ui, |ui| {
-            archipel_plugin_ui::kit::parts::scroll_vertical()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    ui.set_max_width(PAGE_WIDTH);
-                    for page in pages {
-                        ui.add(SectionHeader::new(page.title.as_str()));
-                        Form::new().show(ui, |form| {
-                            form.indent(|form| {
-                                for field in &page.fields {
-                                    self.field(form, field, host);
-                                }
-                            });
-                        });
-                    }
+            ui.set_max_width(PAGE_WIDTH);
+            for page in pages {
+                ui.add(SectionHeader::new(page.title.as_str()));
+                Form::new().show(ui, |form| {
+                    form.indent(|form| {
+                        for field in &page.fields {
+                            self.field(form, field, host);
+                        }
+                    });
                 });
+            }
         });
     }
 
