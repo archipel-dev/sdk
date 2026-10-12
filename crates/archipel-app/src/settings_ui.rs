@@ -1,50 +1,49 @@
 //! The settings page, rendered from the plugin's `SettingsPage` schema with kit components.
 
-use archipel_plugin_api::{PluginHost, SettingKind, SettingsPage, Value};
-use archipel_plugin_ui::kit::components::{Dropdown, SectionHeader, TextField, Toggle};
-use archipel_plugin_ui::{muted, section};
+use archipel_plugin_api::{PluginHost, SettingField, SettingKind, SettingsPage, Value};
+use archipel_plugin_ui::kit::components::{
+    Checkbox, Dropdown, Form, FormUi, NumberField, SectionHeader, TextField,
+};
+use archipel_plugin_ui::kit::tokens::size;
 use egui::Ui;
 use std::collections::HashMap;
 
-/// Edit buffers of number fields, so half-typed input (`1.`, `-`) survives a frame.
+/// Width of a page's form, as Android Studio's settings pages (the fields do not stretch
+/// across a wide window).
+const PAGE_WIDTH: f32 = 560.0;
+
+/// Edit buffers of fractional number fields, so half-typed input (`1.`, `-`) survives a frame.
 #[derive(Debug, Default)]
 pub struct SettingsView {
     numbers: HashMap<String, String>,
 }
 
 impl SettingsView {
+    /// Every page as an Android Studio settings page: its title with a line, then a form
+    /// with a checkbox per switch and a labelled row per value, each with its description
+    /// as a comment.
     pub fn show(&mut self, ui: &mut Ui, pages: &[SettingsPage], host: &mut dyn PluginHost) {
-        let inset = archipel_plugin_ui::kit::tokens::size::CONTENT_INSET as i8;
+        let inset = size::CONTENT_INSET as i8;
         egui::Frame::new().inner_margin(inset).show(ui, |ui| {
-            egui::ScrollArea::vertical()
+            archipel_plugin_ui::kit::parts::scroll_vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    ui.set_max_width(560.0);
+                    ui.set_max_width(PAGE_WIDTH);
                     for page in pages {
-                        if pages.len() > 1 {
-                            section(ui, &page.title);
-                        } else {
-                            ui.heading(&page.title);
-                            ui.add(SectionHeader::new("Settings"));
-                        }
-                        for field in &page.fields {
-                            self.field(ui, field, host);
-                            if let Some(description) = &field.description {
-                                ui.label(muted(ui, description.as_str()));
-                            }
-                            ui.add_space(6.0);
-                        }
+                        ui.add(SectionHeader::new(page.title.as_str()));
+                        Form::new().show(ui, |form| {
+                            form.indent(|form| {
+                                for field in &page.fields {
+                                    self.field(form, field, host);
+                                }
+                            });
+                        });
                     }
                 });
         });
     }
 
-    fn field(
-        &mut self,
-        ui: &mut Ui,
-        field: &archipel_plugin_api::SettingField,
-        host: &mut dyn PluginHost,
-    ) {
+    fn field(&mut self, form: &mut FormUi<'_>, field: &SettingField, host: &mut dyn PluginHost) {
         let current = host
             .setting(&field.key)
             .unwrap_or_else(|| field.kind.default_value());
@@ -56,23 +55,47 @@ impl SettingsView {
                 ));
             }
         };
+        let label = format!("{}:", field.label);
+        let description = field.description.as_deref();
         match &field.kind {
+            SettingKind::Bool { .. } => {
+                let mut flag = current.as_bool().unwrap_or_default();
+                let mut checkbox = Checkbox::new(&mut flag, field.label.as_str());
+                if let Some(description) = description {
+                    checkbox = checkbox.comment(description);
+                }
+                if form.add(checkbox).changed() {
+                    write(Value::from(flag), host);
+                }
+                return;
+            }
             SettingKind::Text { .. } => {
                 let mut text = current.as_str().unwrap_or_default().to_owned();
-                if ui
-                    .add(TextField::new(&mut text).label(field.label.as_str()))
-                    .changed()
-                {
+                let changed = form.row(&label, |ui| {
+                    ui.add(TextField::new(&mut text).name(field.label.as_str()))
+                        .changed()
+                });
+                if changed {
                     write(Value::from(text), host);
                 }
             }
-            SettingKind::Bool { .. } => {
-                let mut flag = current.as_bool().unwrap_or_default();
-                if ui
-                    .add(Toggle::new(&mut flag, field.label.as_str()))
+            SettingKind::Number { min, max, .. }
+                if whole(*min) && whole(*max) && whole_value(&current) =>
+            {
+                // Whole numbers (a page size, a timeout) get an integer field with its range.
+                let mut n = current.as_f64().unwrap_or_default() as i64;
+                let low = min.map_or(i64::MIN, |m| m as i64);
+                let high = max.map_or(i64::MAX, |m| m as i64);
+                let changed = form.row(&label, |ui| {
+                    ui.add(
+                        NumberField::new(&mut n)
+                            .name(field.label.as_str())
+                            .range(low..=high),
+                    )
                     .changed()
-                {
-                    write(Value::from(flag), host);
+                });
+                if changed {
+                    write(Value::from(n), host);
                 }
             }
             SettingKind::Number { min, max, .. } => {
@@ -92,34 +115,52 @@ impl SettingsView {
                     Ok(_) => None,
                     Err(_) => Some("Enter a number".to_owned()),
                 };
-                let response = ui.add(
-                    TextField::new(buffer)
-                        .label(field.label.as_str())
-                        .error(error.as_deref()),
-                );
-                if response.changed()
-                    && let (Ok(n), None) = (parsed, &error)
-                {
+                let changed = form.row(&label, |ui| {
+                    ui.add(
+                        TextField::new(buffer)
+                            .name(field.label.as_str())
+                            .width(size::NUMBER_FIELD_WIDTH)
+                            .error(error.as_deref()),
+                    )
+                    .changed()
+                });
+                if changed && let (Ok(n), None) = (parsed, &error) {
                     write(Value::from(n), host);
                 }
             }
             SettingKind::Choice { options, .. } => {
                 let mut choice = current.as_str().unwrap_or_default().to_owned();
-                ui.label(field.label.as_str());
-                let out = ui.add(
-                    Dropdown::new(
-                        ("setting", &field.key),
-                        &mut choice,
-                        options.iter().cloned(),
+                let changed = form.row(&label, |ui| {
+                    ui.add(
+                        Dropdown::new(
+                            ("setting", &field.key),
+                            &mut choice,
+                            options.iter().cloned(),
+                        )
+                        .label(field.label.as_str()),
                     )
-                    .label(field.label.as_str()),
-                );
-                if out.changed() {
+                    .changed()
+                });
+                if changed {
                     write(Value::from(choice), host);
                 }
             }
         }
+        if let Some(description) = description {
+            form.comment(description);
+        }
     }
+}
+
+/// A bound that is absent or a whole number.
+fn whole(bound: Option<f64>) -> bool {
+    bound.is_none_or(|b| b.fract() == 0.0)
+}
+
+fn whole_value(value: &Value) -> bool {
+    value
+        .as_f64()
+        .is_some_and(|n| n.fract() == 0.0 && n.abs() < 9e15)
 }
 
 fn format_number(n: f64) -> String {
@@ -133,6 +174,73 @@ fn format_number(n: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use archipel_plugin_api::testing::RecordingHost;
+    use archipel_plugin_testing::kit_testing::{self, Queryable};
+    use archipel_plugin_ui::kit::Theme;
+
+    fn page() -> SettingsPage {
+        SettingsPage::new("db", "Database")
+            .field(
+                SettingField::new(
+                    "confirm",
+                    "Confirm changes",
+                    SettingKind::Bool { default: true },
+                )
+                .description("Show the query and the documents it affects before it runs."),
+            )
+            .field(
+                SettingField::new(
+                    "page",
+                    "Page size",
+                    SettingKind::Number {
+                        default: 50.0,
+                        min: Some(1.0),
+                        max: Some(1000.0),
+                    },
+                )
+                .description("Documents per page in tables."),
+            )
+            .field(SettingField::new(
+                "theme",
+                "Result view",
+                SettingKind::Choice {
+                    options: vec!["Table".into(), "Tree".into()],
+                    default: "Table".into(),
+                },
+            ))
+            .field(SettingField::new(
+                "app",
+                "Application name",
+                SettingKind::Text {
+                    default: String::new(),
+                },
+            ))
+    }
+
+    fn harness(theme: Theme) -> kit_testing::Harness<'static, (SettingsView, RecordingHost)> {
+        let pages = vec![page()];
+        kit_testing::harness_state_sized(
+            theme,
+            egui::vec2(640.0, 340.0),
+            (SettingsView::default(), RecordingHost::new("test")),
+            move |ui, (view, host)| view.show(ui, &pages, host),
+        )
+    }
+
+    #[test]
+    fn pages_are_forms_and_write_what_is_changed() {
+        let mut harness = harness(Theme::dark());
+        // Switches are checkboxes with their description, values rows in one column.
+        let page = harness.get_by_label("Page size").rect();
+        let name = harness.get_by_label("Application name").rect();
+        assert!((page.left() - name.left()).abs() < 0.5, "{page:?} {name:?}");
+        harness.get_by_label("Confirm changes").click();
+        harness.run();
+        assert_eq!(
+            harness.state().1.setting("confirm"),
+            Some(Value::from(false))
+        );
+    }
 
     #[test]
     fn numbers_format_without_a_trailing_zero() {
