@@ -4,7 +4,7 @@ Any `Plugin` can run as a desktop app, with no host: `archipel-app` (re-exported
 `archipel_sdk::app`, feature `app`, on by default) opens an eframe window, installs the kit
 theme and hosts the plugin. Nexus HTTP and Mongo Raabit use it instead of a hand-written shell.
 
-![The hello example as a standalone app: app tab, editor tab, settings tab and a tool window](img/hello-app.png)
+![The hello example as a standalone app: app tab, editor tab and a tool window (older screenshot includes a Settings tab)](img/hello-app.png)
 
 ## Run a plugin
 
@@ -65,7 +65,7 @@ wgpu, set `ARCHIPEL_RENDERER=glow` to use OpenGL through glow. An unknown value 
 | App view | `Plugin::render_view` with `ViewPlacement::App` fills the window |
 | Tool windows | side panels (left, right, bottom by `anchor`) drawn in a kit `Panel` with a close button. Toggle them with the buttons in the status bar, the palette (`Toggle <title>`) or `host.open_tool_window(id)` |
 | Editor tabs | `host.open_editor_tab(request)` opens a kit `TabBar` tab (same `key` focuses the existing one); the app view stays the first tab. Shown only once a tab is open |
-| Settings | **Open Settings** (palette) opens a tab rendered from the plugin's `SettingsPage`s: `Text` → `TextField`, `Bool` → `Toggle`, `Number` → validated `TextField`, `Choice` → `Dropdown` |
+| Settings | **Open Settings** (palette) opens a modal kit dialog over the current view, without adding a host tab; Close or Escape returns to the unchanged view. Settings are saved immediately. The dialog is rendered from the plugin's `SettingsPage`s: `Text` → `TextField`, `Bool` → `Toggle`, `Number` → validated `TextField`, `Choice` → `Dropdown` |
 | Status bar | `show_status` text on the left; status widgets (`Plugin::status_widget`, clickable when they have a command), the running task and tool window buttons on the right |
 | Notifications | `host.notify` shows kit `Toast`s bottom-right; info toasts fade after 5 s, warnings 8 s, errors 12 s |
 | Tasks | `begin_task` / `update_task` / `end_task` show a kit `ProgressBar` in the status bar |
@@ -150,6 +150,6 @@ commands and omit duplicate host tool-window contributions after activation. In 
 keep using `open_tool_window` and `open_editor_tab`.
 
 Call `host.focus_app_view()` when a command reveals an embedded island: this returns from
-a Settings or editor tab to the main app view without closing the host tabs. Hosts without
+an editor tab to the main app view without closing the host tabs. Hosts without
 an app view ignore this request. Commands schedule a repaint, including picks made after
 the central view has already painted.

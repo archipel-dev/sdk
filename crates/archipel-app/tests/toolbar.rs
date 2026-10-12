@@ -179,7 +179,11 @@ fn the_app_menu_runs_the_app_commands() {
         !harness.state().app_menu_open(),
         "picking an item closes it"
     );
-    assert_eq!(harness.state().tab_titles(), ["Settings"]);
+    assert!(harness.state().settings_open());
+    assert!(harness.state().tab_titles().is_empty());
+    harness.key_press(Key::Escape);
+    harness.run_ok();
+    assert!(!harness.state().settings_open());
 
     open_app_menu(&mut harness);
     harness.get_by_label("Command Palette…").click();
@@ -242,7 +246,11 @@ fn the_toolbar_buttons_open_settings_and_the_palette() {
         .get_by_role_and_label(Role::Button, "Settings")
         .click();
     harness.run_ok();
-    assert_eq!(harness.state().tab_titles(), ["Settings"]);
+    assert!(harness.state().settings_open());
+    assert!(harness.state().tab_titles().is_empty());
+    harness.key_press(Key::Escape);
+    harness.run_ok();
+    assert!(!harness.state().settings_open());
     harness
         .get_by_role_and_label(Role::Button, "Command Palette")
         .click();
@@ -287,4 +295,33 @@ fn a_click_on_the_search_button_keeps_the_palette_open() {
     harness.step();
     harness.step();
     assert!(harness.state().palette_open());
+}
+
+#[test]
+fn settings_dialog_passes_the_audit_and_closes_without_host_tabs() {
+    for theme in [ThemeMode::Dark, ThemeMode::Light] {
+        let mut harness = window(app("settings-dialog-audit", theme, true), 1.0);
+        harness
+            .get_by_role_and_label(Role::Button, "Settings")
+            .click();
+        harness.run_ok();
+        assert!(harness.state().settings_open());
+        assert!(harness.state().tab_titles().is_empty());
+        let mut audit = testing::audit(&mut harness);
+        // The modal intentionally keeps the background toolbar outside the Tab cycle.
+        audit.findings.retain(|finding| {
+            !(finding.problem == testing::Problem::Unreachable
+                && [
+                    "ComboBox \"Mongo Raabit\"",
+                    "Button \"Command Palette\"",
+                    "Button \"Settings\"",
+                ]
+                .contains(&finding.element.as_str()))
+        });
+        audit.assert_clean();
+        harness.get_by_role_and_label(Role::Button, "Close").click();
+        harness.run_ok();
+        assert!(!harness.state().settings_open());
+        assert!(harness.state().tab_titles().is_empty());
+    }
 }

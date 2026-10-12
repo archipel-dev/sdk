@@ -232,7 +232,8 @@ fn plugin_keybindings_tool_windows_and_errors() {
     assert!(app.host().is_standalone());
     app.run_command(&ctx, "app.settings", Value::Null);
     assert!(app.wants_repaint());
-    assert_eq!(app.tab_titles(), ["Doc", "Settings"]);
+    assert!(app.settings_open());
+    assert_eq!(app.tab_titles(), ["Doc"]);
     frames(&mut app, &ctx, 2, vec![]);
     let _ = std::fs::remove_dir_all(root);
 }
@@ -257,14 +258,14 @@ fn a_failing_activation_is_reported_not_fatal() {
 }
 
 #[test]
-fn a_plugin_can_return_from_settings_to_its_main_view() {
+fn a_plugin_can_return_from_an_editor_to_its_main_view() {
     let (options, root) = options("focus-main");
     let mut app = App::new(Probe::new(true), options).unwrap();
     let ctx = egui::Context::default();
     frames(&mut app, &ctx, 3, vec![]);
-    app.run_command(&ctx, "app.settings", Value::Null);
+    app.run_command(&ctx, "probe.tab", Value::Null);
     frames(&mut app, &ctx, 2, vec![]);
-    assert_eq!(app.tab_titles(), ["Settings"]);
+    assert_eq!(app.tab_titles(), ["Doc"]);
     app.run_command(&ctx, "probe.home", Value::Null);
     assert!(app.wants_repaint());
     frames(&mut app, &ctx, 2, vec![]);
@@ -284,6 +285,29 @@ fn a_plugin_can_return_from_settings_to_its_main_view() {
         labels.contains(&"probe.main"),
         "the main view is painted again"
     );
-    assert_eq!(app.tab_titles(), ["Settings"], "settings remain open");
+    assert_eq!(app.tab_titles(), ["Doc"], "editor tabs remain open");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn settings_are_modal_and_escape_preserves_the_editor() {
+    let (options, root) = options("settings-modal");
+    let mut app = App::new(Probe::new(true), options).unwrap();
+    let ctx = egui::Context::default();
+    frames(&mut app, &ctx, 3, vec![]);
+    app.run_command(&ctx, "probe.tab", Value::Null);
+    frames(&mut app, &ctx, 2, vec![]);
+    app.run_command(&ctx, "app.settings", Value::Null);
+    frames(&mut app, &ctx, 2, vec![]);
+    assert!(app.settings_open());
+    assert_eq!(app.tab_titles(), ["Doc"]);
+    frames(&mut app, &ctx, 2, key(Key::A, CTRL_SHIFT));
+    assert!(
+        !app.palette_open(),
+        "global shortcuts do not escape the modal"
+    );
+    frames(&mut app, &ctx, 2, key(Key::Escape, Modifiers::NONE));
+    assert!(!app.settings_open());
+    assert_eq!(app.tab_titles(), ["Doc"]);
     let _ = std::fs::remove_dir_all(root);
 }

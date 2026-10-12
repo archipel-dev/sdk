@@ -36,6 +36,7 @@ fn the_hello_app_starts_and_hosts_its_views() {
     frame(&mut app);
     frame(&mut app);
     assert_eq!(app.open_tool_windows(), ["hello"]);
-    assert_eq!(app.tab_titles(), ["Hello", "Settings"]);
+    assert_eq!(app.tab_titles(), ["Hello"]);
+    assert!(app.settings_open());
     let _ = std::fs::remove_dir_all(root);
 }
