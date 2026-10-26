@@ -9,8 +9,8 @@ use archipel_sdk::api::{
     SettingField, SettingKind, SettingsPage, StatusWidgetContribution, StatusWidgetState,
     ToolWindowContribution, Value, ViewContext, ViewFrame, json,
 };
-use archipel_sdk::kit::components::{Button, TextField};
 use archipel_sdk::kit::egui;
+use archipel_sdk::kit::ui::{Button, JBTextField};
 use archipel_sdk::ui;
 
 pub const ID: &str = "dev.archipel.hello";
@@ -61,7 +61,7 @@ impl HelloPlugin {
 
     fn main_view(&mut self, ui: &mut egui::Ui, host: &mut dyn PluginHost) {
         ui::header(ui, "Hello", |_| {});
-        ui.add(TextField::new(&mut self.name).label("Name"));
+        ui.add(JBTextField::new(&mut self.name).label("Name"));
         ui.add_space(6.0);
         if ui.add(Button::primary("Say Hello")).clicked() {
             self.say_hello(host);
@@ -177,7 +177,7 @@ impl Plugin for HelloPlugin {
 mod tests {
     use super::*;
     use archipel_sdk::api::ViewPlacement;
-    use archipel_sdk::kit::{Theme, components::Button};
+    use archipel_sdk::kit::{Theme, ui::Button};
     use archipel_sdk::testing::{
         Fixture, NodeExt, Queryable, RecordingHost, audit, conformance, view_harness,
     };

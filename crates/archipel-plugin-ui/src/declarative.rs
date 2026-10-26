@@ -88,7 +88,10 @@ fn node_ui(ui: &mut Ui, scope: &str, node: &ViewNode, events: &mut Vec<ViewEvent
         } => {
             let mut value = *checked;
             ui.push_id(id(checkbox), |ui| {
-                if ui.add(JBCheckBox::new(&mut value, label.as_str())).changed() {
+                if ui
+                    .add(JBCheckBox::new(&mut value, label.as_str()))
+                    .changed()
+                {
                     events.push(ViewEvent::Changed {
                         id: checkbox.clone(),
                         value: Value::from(value),
