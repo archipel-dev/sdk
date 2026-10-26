@@ -18,10 +18,10 @@ ad-hoc styling: colors come from the theme and sizes from the kit's tokens.
   `empty_state`, `secondary_text`, and `render_node` for declarative `ViewNode` trees.
 
 ```rust,ignore
-use archipel_sdk::kit::{Theme, components::{Button, Checkbox, TextField}};
+use archipel_sdk::kit::{Theme, ui::{Button, JBCheckBox, JBTextField}};
 
-ui.add(TextField::new(&mut self.name).label("Name"));
-ui.add(Checkbox::new(&mut self.loud, "Loud"));
+ui.add(JBTextField::new(&mut self.name).label("Name"));
+ui.add(JBCheckBox::new(&mut self.loud, "Loud"));
 if ui.add(Button::primary("Say Hello")).clicked() { /* ... */ }
 let accent = Theme::colors(ui.ctx()).text_secondary; // never a hard-coded Color32
 ```
@@ -42,7 +42,7 @@ The kit documents each component with usage, API, behavior and accessibility:
 ## Rules of thumb
 
 1. Use kit components for everything interactive. If you reach for `ui.button` or
-   `egui::TextEdit`, use `Button` or `TextField` instead.
+   `egui::TextEdit`, use `Button` or `JBTextField` instead.
 2. Colors from `Theme::colors(ctx)`, sizes from `kit::tokens`; no literal colors or fonts.
 3. Every control needs an accessible name (its label). The `audit` test fails on unnamed
    controls, tiny targets and overlaps.

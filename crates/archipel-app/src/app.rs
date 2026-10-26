@@ -10,11 +10,16 @@ use archipel_plugin_api::{
     Contributions, EditorTabRequest, Notification, Plugin, PluginHost, ToolWindowAnchor,
     ToolWindowContribution, Value, ViewContext, ViewFrame, ViewPlacement,
 };
-use archipel_plugin_ui::kit::components::{
-    Avatar, Button, Dialog, EmptyState, IconButton, MenuItem, MenuSeparator, Panel, ProgressBar,
-    Severity, Tab, TabBar, Toast, ToolbarButton, WindowChrome, WindowToolbar,
+use archipel_plugin_ui::kit::action_system::{ActionButton, ActionMenuItem};
+use archipel_plugin_ui::kit::notification::Notification as Toast;
+use archipel_plugin_ui::kit::openapi::ui::DialogWrapper;
+use archipel_plugin_ui::kit::parts::Slot;
+use archipel_plugin_ui::kit::ui::popup::{JBPopup, ListSeparator};
+use archipel_plugin_ui::kit::ui::tabs::{JBTabs, TabInfo};
+use archipel_plugin_ui::kit::ui::{Avatar, Button, ProgressBar, Status, StatusText};
+use archipel_plugin_ui::kit::wm::{
+    IdeFrameDecorator, MainToolbar, SimpleToolWindowPanel, ToolbarComboButton,
 };
-use archipel_plugin_ui::kit::parts::{Popover, Slot};
 use archipel_plugin_ui::kit::{self, Glyph, Theme, tokens};
 use archipel_plugin_ui::{empty_state, muted};
 use egui::{Context, Ui};
@@ -28,7 +33,7 @@ const CMD_TOOL_WINDOW: &str = "app.toolWindow.";
 
 /// How the window meets the native title bar: on macOS the main toolbar takes the title
 /// bar's place and holds the traffic lights; elsewhere the native decorations stay.
-pub const CHROME: WindowChrome = WindowChrome::Integrated;
+pub const CHROME: IdeFrameDecorator = IdeFrameDecorator::Integrated;
 
 /// Width of the app menu under the app widget.
 const APP_MENU_WIDTH: f32 = 240.0;
@@ -425,7 +430,7 @@ impl App {
         let settings_shortcut = self.keymap.shortcut_of(CMD_SETTINGS);
         let quit_shortcut = self.keymap.shortcut_of(CMD_QUIT);
         let mut menu = self.app_menu;
-        WindowToolbar::new("archipel-main-toolbar")
+        MainToolbar::new("archipel-main-toolbar")
             .chrome(CHROME)
             .project_color(kit::theme::avatar_color(&title))
             .show(ctx, |ui| {
@@ -433,11 +438,11 @@ impl App {
                 if button.clicked() {
                     menu = !menu;
                 }
-                let closed = Popover::below("archipel-app-menu", &button)
+                let closed = JBPopup::below("archipel-app-menu", &button)
                     .width(APP_MENU_WIDTH)
                     .show(ui.ctx(), &mut menu, |ui| {
                         let item = |label: &str, icon: Glyph, shortcut: &Option<String>| {
-                            let item = MenuItem::new(label).icon(icon);
+                            let item = ActionMenuItem::new(label).icon(icon);
                             match shortcut {
                                 Some(shortcut) => item.shortcut(shortcut.as_str()),
                                 None => item,
@@ -456,7 +461,7 @@ impl App {
                         {
                             command = Some(CMD_SETTINGS);
                         }
-                        ui.add(MenuSeparator);
+                        ui.add(ListSeparator::new());
                         if ui.add(item("Quit", Glyph::Close, &quit_shortcut)).clicked() {
                             command = Some(CMD_QUIT);
                         }
@@ -565,9 +570,9 @@ impl App {
             let mut body = |ui: &mut Ui| {
                 frame_glow(ui, title);
                 let mut close = false;
-                Panel::new(window.title.as_str())
+                SimpleToolWindowPanel::new(window.title.as_str())
                     .actions(|ui| {
-                        close = ui.add(IconButton::new(Glyph::Close, "Close")).clicked();
+                        close = ui.add(ActionButton::new(Glyph::Close, "Close")).clicked();
                     })
                     .show(ui, |ui| {
                         if running {
@@ -619,7 +624,7 @@ impl App {
             .show(ctx, |ui| {
                 frame_glow(ui, &self.title);
                 if let Some(message) = &self.failed {
-                    EmptyState::new("The plugin failed to start")
+                    StatusText::new("The plugin failed to start")
                         .hint(message.as_str())
                         .show(ui);
                     return;
@@ -628,14 +633,14 @@ impl App {
                     return;
                 }
                 if !self.tabs.is_empty() {
-                    let mut tabs = vec![Tab::new(self.title.as_str())];
+                    let mut tabs = vec![TabInfo::new(self.title.as_str())];
                     tabs.extend(
                         self.tabs
                             .iter()
-                            .map(|t| Tab::new(t.title.as_str()).closable(true)),
+                            .map(|t| TabInfo::new(t.title.as_str()).closable(true)),
                     );
                     let selected = self.current.map_or(0, |i| i + 1);
-                    let out = TabBar::new(&tabs, selected).show(ui);
+                    let out = JBTabs::new(&tabs, selected).show(ui);
                     if let Some(index) = out.selected {
                         self.current = index.checked_sub(1);
                     }
@@ -677,7 +682,7 @@ impl App {
         let pages = &self.contributions.settings_pages;
         let width =
             (ctx.content_rect().width() - 2.0 * tokens::size::CONTENT_INSET).clamp(0.0, 640.0);
-        let action = Dialog::new("Settings")
+        let action = DialogWrapper::new("Settings")
             .icon(Glyph::Settings)
             .width(width)
             .primary("Close")
@@ -696,9 +701,9 @@ impl App {
         let mut dismissed = Vec::new();
         for (index, toast) in self.host.toasts().iter().enumerate() {
             let severity = match toast.notification.level {
-                archipel_plugin_api::NotificationLevel::Info => Severity::Info,
-                archipel_plugin_api::NotificationLevel::Warning => Severity::Warning,
-                archipel_plugin_api::NotificationLevel::Error => Severity::Error,
+                archipel_plugin_api::NotificationLevel::Info => Status::Info,
+                archipel_plugin_api::NotificationLevel::Warning => Status::Warning,
+                archipel_plugin_api::NotificationLevel::Error => Status::Error,
             };
             let mut card = Toast::new(severity, toast.notification.title.as_str());
             if !toast.notification.body.is_empty() {
@@ -723,9 +728,9 @@ fn render_view(plugin: &mut dyn Plugin, host: &mut AppHost, view: &ViewContext, 
 
 /// The app widget of the main toolbar: the app's tile (its initials on its color), its name
 /// and a chevron, like Android Studio's project widget.
-pub fn app_widget(title: &str, open: bool) -> ToolbarButton<'static> {
+pub fn app_widget(title: &str, open: bool) -> ToolbarComboButton<'static> {
     let tile = title.to_owned();
-    ToolbarButton::new(title)
+    ToolbarComboButton::new(title)
         .leading(Slot::ui_width(tokens::toolbar::ICON, move |ui| {
             ui.add(Avatar::new(tile).size(tokens::toolbar::ICON));
         }))
@@ -734,13 +739,13 @@ pub fn app_widget(title: &str, open: bool) -> ToolbarButton<'static> {
 }
 
 /// Opens the command palette (Android Studio's Search Everywhere place).
-pub fn palette_button() -> IconButton {
-    IconButton::new(Glyph::Search, "Command Palette").large(true)
+pub fn palette_button() -> ActionButton<'static> {
+    ActionButton::new(Glyph::Search, "Command Palette").large(true)
 }
 
 /// Opens the modal Settings dialog.
-pub fn settings_button() -> IconButton {
-    IconButton::new(Glyph::Settings, "Settings").large(true)
+pub fn settings_button() -> ActionButton<'static> {
+    ActionButton::new(Glyph::Settings, "Settings").large(true)
 }
 
 /// Continues the toolbar's glow over the frame of a panel below it, as Android Studio's

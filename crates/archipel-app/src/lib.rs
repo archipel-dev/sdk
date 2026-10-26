@@ -270,7 +270,7 @@ mod tests {
         let integrated = CHROME.viewport(egui::ViewportBuilder::default());
         assert_eq!(
             CHROME,
-            archipel_plugin_ui::kit::components::WindowChrome::Integrated
+            archipel_plugin_ui::kit::wm::IdeFrameDecorator::Integrated
         );
         assert_eq!(
             native.viewport.fullsize_content_view,

@@ -70,7 +70,7 @@ archipel-sdk = { git = "https://github.com/archipel-dev/sdk", tag = "v0.1.0", fe
 
 ```rust,ignore
 use archipel_sdk::api::*;
-use archipel_sdk::kit::{components::Button, egui};
+use archipel_sdk::kit::{egui, ui::Button};
 use archipel_sdk::ui;
 
 pub struct MyTool { manifest: PluginManifest, clicks: u32 }
@@ -212,7 +212,7 @@ that shows one of the plugin's views with `ViewPlacement::EditorTab { key, path 
 with the key of an open tab focuses it. A tool window typically opens the detail of an item:
 
 ```rust,ignore
-if ui.add(ListRow::new(&request.name)).double_clicked() {
+if ui.add(ColoredListCellRenderer::new(&request.name)).double_clicked() {
     view.open_editor_tab(
         host,
         EditorTabRequest::new("nexus.request", &request.name).key(format!("request:{}", request.id)),
