@@ -1,9 +1,10 @@
 //! egui renderer for declarative [`ViewNode`] trees, built from kit components.
 
 use crate::{empty_state, muted, property, section};
-use archipel_kit::components::{
-    Button, Cell, Checkbox, Column, Dropdown, ListRow, Separator, Table, TextField, Tree, TreeRow,
-    VirtualList,
+use archipel_kit::openapi::ui::ComboBox;
+use archipel_kit::ui::{
+    Button, Cell, ColoredListCellRenderer, ColumnInfo, JBCheckBox, JBList, JBTable, JBTextField,
+    SeparatorComponent, Tree, TreeNode as TreeRow,
 };
 use archipel_plugin_api::{TreeNode, Value, ViewEvent, ViewNode};
 use egui::{Id, RichText, Ui};
@@ -50,7 +51,7 @@ fn node_ui(ui: &mut Ui, scope: &str, node: &ViewNode, events: &mut Vec<ViewEvent
         ViewNode::Section { text } => section(ui, text),
         ViewNode::Property { key, value } => property(ui, key, value),
         ViewNode::Separator => {
-            ui.add(Separator);
+            ui.add(SeparatorComponent);
         }
         ViewNode::Button { id: button, label } => {
             ui.push_id(id(button), |ui| {
@@ -68,7 +69,7 @@ fn node_ui(ui: &mut Ui, scope: &str, node: &ViewNode, events: &mut Vec<ViewEvent
             // The kit's field is single-line; a multiline request renders as one line.
             let mut text = value.clone();
             ui.push_id(id(input), |ui| {
-                let mut field = TextField::new(&mut text).width(crate::input_width(ui, false));
+                let mut field = JBTextField::new(&mut text).width(crate::input_width(ui, false));
                 if !hint.is_empty() {
                     field = field.label(hint.as_str());
                 }
@@ -87,7 +88,7 @@ fn node_ui(ui: &mut Ui, scope: &str, node: &ViewNode, events: &mut Vec<ViewEvent
         } => {
             let mut value = *checked;
             ui.push_id(id(checkbox), |ui| {
-                if ui.add(Checkbox::new(&mut value, label.as_str())).changed() {
+                if ui.add(JBCheckBox::new(&mut value, label.as_str())).changed() {
                     events.push(ViewEvent::Changed {
                         id: checkbox.clone(),
                         value: Value::from(value),
@@ -101,7 +102,7 @@ fn node_ui(ui: &mut Ui, scope: &str, node: &ViewNode, events: &mut Vec<ViewEvent
             selected,
         } => {
             let mut value = selected.clone();
-            ui.add(Dropdown::new(id(choice), &mut value, options.iter().cloned()).label(choice));
+            ui.add(ComboBox::new(id(choice), &mut value, options.iter().cloned()).label(choice));
             if value != *selected {
                 events.push(ViewEvent::Changed {
                     id: choice.clone(),
@@ -117,12 +118,12 @@ fn node_ui(ui: &mut Ui, scope: &str, node: &ViewNode, events: &mut Vec<ViewEvent
             let mut current = selected
                 .as_deref()
                 .and_then(|sel| items.iter().position(|item| item.id == sel));
-            let out = VirtualList::new(id(list), items.len(), &mut current)
+            let out = JBList::new(id(list), items.len(), &mut current)
                 .name(list.as_str())
                 .height(COLLECTION_HEIGHT)
                 .show(ui, |index| {
                     let item = &items[index];
-                    let row = ListRow::new(item.label.as_str());
+                    let row = ColoredListCellRenderer::new(item.label.as_str());
                     match &item.detail {
                         Some(detail) => row.secondary(detail.as_str()),
                         None => row,
@@ -149,13 +150,13 @@ fn node_ui(ui: &mut Ui, scope: &str, node: &ViewNode, events: &mut Vec<ViewEvent
                 .data_mut(|data| data.get_temp::<Vec<f32>>(table_id))
                 .unwrap_or_default();
             widths.resize(columns.len(), DEFAULT_COLUMN_WIDTH);
-            let mut cols: Vec<Column> = columns
+            let mut cols: Vec<ColumnInfo> = columns
                 .iter()
                 .zip(&widths)
-                .map(|(title, width)| Column::new(title.as_str(), *width))
+                .map(|(title, width)| ColumnInfo::new(title.as_str(), *width))
                 .collect();
             let mut current = *selected;
-            let out = Table::new(table_id, &mut cols, rows.len(), &mut current)
+            let out = JBTable::new(table_id, &mut cols, rows.len(), &mut current)
                 .name(table.as_str())
                 .height(COLLECTION_HEIGHT)
                 .show(ui, |row, column| {

@@ -18,7 +18,7 @@ pub use declarative::render_node;
 pub use egui;
 
 use archipel_kit::Theme;
-use archipel_kit::components::{EmptyState, PropertyGrid, SectionHeader, Separator};
+use archipel_kit::ui::{PropertyGrid, SeparatorComponent, StatusText, TitledSeparator};
 use egui::{Color32, RichText, Ui};
 
 /// The egui `Ui` inside a frame rendered by the egui host, if any.
@@ -65,17 +65,17 @@ pub fn header(ui: &mut Ui, title: &str, actions: impl FnOnce(&mut Ui)) {
         ui.heading(title);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), actions);
     });
-    ui.add(Separator);
+    ui.add(SeparatorComponent);
 }
 
 /// Group title with a hairline, as used for sections in tool windows.
 pub fn section(ui: &mut Ui, title: &str) {
-    ui.add(SectionHeader::new(title));
+    ui.add(TitledSeparator::new(title));
 }
 
 /// Centered placeholder for an empty view.
 pub fn empty_state(ui: &mut Ui, title: &str, hint: &str) {
-    let mut state = EmptyState::new(title);
+    let mut state = StatusText::new(title);
     if !hint.is_empty() {
         state = state.hint(hint);
     }
