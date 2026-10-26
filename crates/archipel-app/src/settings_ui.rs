@@ -1,10 +1,10 @@
 //! The settings page, rendered from the plugin's `SettingsPage` schema with kit components.
 
 use archipel_plugin_api::{PluginHost, SettingField, SettingKind, SettingsPage, Value};
-use archipel_plugin_ui::kit::components::{
-    Checkbox, Dropdown, Form, FormUi, NumberField, SectionHeader, TextField,
-};
+use archipel_plugin_ui::kit::openapi::ui::ValidationInfo;
 use archipel_plugin_ui::kit::tokens::size;
+use archipel_plugin_ui::kit::ui::TitledSeparator;
+use archipel_plugin_ui::kit::ui::dsl::{Panel, panel};
 use egui::Ui;
 use std::collections::HashMap;
 
@@ -27,11 +27,11 @@ impl SettingsView {
         egui::Frame::new().inner_margin(inset).show(ui, |ui| {
             ui.set_max_width(PAGE_WIDTH);
             for page in pages {
-                ui.add(SectionHeader::new(page.title.as_str()));
-                Form::new().show(ui, |form| {
-                    form.indent(|form| {
+                ui.add(TitledSeparator::new(page.title.as_str()));
+                panel(ui, |p| {
+                    p.indent(|p| {
                         for field in &page.fields {
-                            self.field(form, field, host);
+                            self.field(p, field, host);
                         }
                     });
                 });
@@ -39,7 +39,7 @@ impl SettingsView {
         });
     }
 
-    fn field(&mut self, form: &mut FormUi<'_>, field: &SettingField, host: &mut dyn PluginHost) {
+    fn field(&mut self, panel: &mut Panel<'_>, field: &SettingField, host: &mut dyn PluginHost) {
         let current = host
             .setting(&field.key)
             .unwrap_or_else(|| field.kind.default_value());
@@ -56,20 +56,27 @@ impl SettingsView {
         match &field.kind {
             SettingKind::Bool { .. } => {
                 let mut flag = current.as_bool().unwrap_or_default();
-                let mut checkbox = Checkbox::new(&mut flag, field.label.as_str());
-                if let Some(description) = description {
-                    checkbox = checkbox.comment(description);
-                }
-                if form.add(checkbox).changed() {
+                let mut changed = false;
+                panel.unlabeled_row(|r| {
+                    let cell = r.check_box(&mut flag, field.label.as_str());
+                    if let Some(description) = description {
+                        cell.comment(description);
+                    }
+                    cell.on_response(|response| changed = response.changed());
+                });
+                if changed {
                     write(Value::from(flag), host);
                 }
-                return;
             }
             SettingKind::Text { .. } => {
                 let mut text = current.as_str().unwrap_or_default().to_owned();
-                let changed = form.row(&label, |ui| {
-                    ui.add(TextField::new(&mut text).name(field.label.as_str()))
-                        .changed()
+                let mut changed = false;
+                panel.row(&label, |r| {
+                    r.text_field(&mut text)
+                        .on_response(|response| changed = response.changed());
+                    if let Some(description) = description {
+                        r.row_comment(description);
+                    }
                 });
                 if changed {
                     write(Value::from(text), host);
@@ -82,13 +89,13 @@ impl SettingsView {
                 let mut n = current.as_f64().unwrap_or_default() as i64;
                 let low = min.map_or(i64::MIN, |m| m as i64);
                 let high = max.map_or(i64::MAX, |m| m as i64);
-                let changed = form.row(&label, |ui| {
-                    ui.add(
-                        NumberField::new(&mut n)
-                            .name(field.label.as_str())
-                            .range(low..=high),
-                    )
-                    .changed()
+                let mut changed = false;
+                panel.row(&label, |r| {
+                    r.int_spinner_with(&mut n, |spinner| spinner.range(low..=high))
+                        .on_response(|response| changed = response.changed());
+                    if let Some(description) = description {
+                        r.row_comment(description);
+                    }
                 });
                 if changed {
                     write(Value::from(n), host);
@@ -111,14 +118,16 @@ impl SettingsView {
                     Ok(_) => None,
                     Err(_) => Some("Enter a number".to_owned()),
                 };
-                let changed = form.row(&label, |ui| {
-                    ui.add(
-                        TextField::new(buffer)
-                            .name(field.label.as_str())
-                            .width(size::NUMBER_FIELD_WIDTH)
-                            .error(error.as_deref()),
-                    )
-                    .changed()
+                let validation = error.as_deref().map(ValidationInfo::error);
+                let mut changed = false;
+                panel.row(&label, |r| {
+                    r.text_field(buffer)
+                        .width(size::NUMBER_FIELD_WIDTH)
+                        .validation(validation.as_ref())
+                        .on_response(|response| changed = response.changed());
+                    if let Some(description) = description {
+                        r.row_comment(description);
+                    }
                 });
                 if changed && let (Ok(n), None) = (parsed, &error) {
                     write(Value::from(n), host);
@@ -126,24 +135,22 @@ impl SettingsView {
             }
             SettingKind::Choice { options, .. } => {
                 let mut choice = current.as_str().unwrap_or_default().to_owned();
-                let changed = form.row(&label, |ui| {
-                    ui.add(
-                        Dropdown::new(
-                            ("setting", &field.key),
-                            &mut choice,
-                            options.iter().cloned(),
-                        )
-                        .label(field.label.as_str()),
+                let mut changed = false;
+                panel.row(&label, |r| {
+                    r.combo_box(
+                        ("setting", &field.key),
+                        &mut choice,
+                        options.iter().cloned(),
                     )
-                    .changed()
+                    .on_response(|response| changed = response.changed());
+                    if let Some(description) = description {
+                        r.row_comment(description);
+                    }
                 });
                 if changed {
                     write(Value::from(choice), host);
                 }
             }
-        }
-        if let Some(description) = description {
-            form.comment(description);
         }
     }
 }

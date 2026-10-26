@@ -3,7 +3,7 @@
 //! simulated pointer and keyboard input.
 //!
 //! The snapshots show the toolbar as Linux and Windows draw it. On macOS the same row also
-//! holds the native traffic lights (`WindowChrome::Integrated`); those belong to the OS and
+//! holds the native traffic lights (`IdeFrameDecorator::Integrated`); those belong to the OS and
 //! can't be rendered here.
 
 use archipel_app::api::*;
@@ -11,7 +11,7 @@ use archipel_app::{App, AppOptions, SecretBackend, ThemeMode};
 use archipel_plugin_testing::kit_testing::{
     self as testing, Harness, NodeT, Queryable, Role, SnapshotOptions, SnapshotResults,
 };
-use archipel_plugin_ui::kit::components::MenuItem;
+use archipel_plugin_ui::kit::action_system::ActionMenuItem;
 use egui::Key;
 
 struct Tool {
@@ -111,7 +111,7 @@ fn toolbar_widgets_conform() {
     .run();
     for label in ["Command Palette…", "Settings…", "Quit"] {
         testing::conformance(label, move |ui, enabled| {
-            ui.add(MenuItem::new(label).enabled(enabled))
+            ui.add(ActionMenuItem::new(label).enabled(enabled))
         })
         .run();
     }

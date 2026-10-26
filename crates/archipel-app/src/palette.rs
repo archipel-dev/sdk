@@ -1,7 +1,7 @@
 //! The command palette (Ctrl+Shift+A), built from kit components.
 
-use archipel_plugin_ui::kit::components::{ListRow, TextField};
 use archipel_plugin_ui::kit::parts::Slot;
+use archipel_plugin_ui::kit::ui::{ColoredListCellRenderer, JBTextField};
 use archipel_plugin_ui::kit::{Theme, tokens};
 use egui::{Align2, Key, Order};
 
@@ -89,8 +89,9 @@ impl Palette {
                     .inner_margin(tokens::size::DIALOG_PADDING as i8)
                     .show(ui, |ui| {
                         ui.set_width(520.0);
-                        let field = ui
-                            .add(TextField::search(&mut self.query).placeholder("Run a command…"));
+                        let field = ui.add(
+                            JBTextField::search(&mut self.query).placeholder("Run a command…"),
+                        );
                         if self.just_opened {
                             field.request_focus();
                             self.just_opened = false;
@@ -105,9 +106,10 @@ impl Palette {
                             .show(ui, |ui| {
                                 for (row, index) in matches.iter().copied().enumerate() {
                                     let entry = &entries[index];
-                                    let mut line = ListRow::new(entry.label.as_str())
-                                        .secondary(entry.category.as_str())
-                                        .selected(row == self.selected);
+                                    let mut line =
+                                        ColoredListCellRenderer::new(entry.label.as_str())
+                                            .secondary(entry.category.as_str())
+                                            .selected(row == self.selected);
                                     if let Some(shortcut) = &entry.shortcut {
                                         line = line.trailing(Slot::text(shortcut.as_str()));
                                     }

@@ -47,7 +47,7 @@ title = "My Tool"
 ```rust,ignore
 // src/lib.rs
 use archipel_sdk::api::*;
-use archipel_sdk::kit::components::Button;
+use archipel_sdk::kit::ui::Button;
 use archipel_sdk::ui;
 
 pub struct MyTool {

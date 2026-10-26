@@ -258,7 +258,7 @@ dependencies = [
 [[package]]
 name = "archipel-icons"
 version = "0.3.1"
-source = "git+https://github.com/archipel-dev/kit?branch=main#d48b2a02f9ec0b318a1545333af2d0376e56ff03"
+source = "git+https://github.com/archipel-dev/kit?branch=main#bc92eda27f2d9e2e6c3412efdad4c8c5d3167fc6"
 dependencies = [
  "egui",
 ]
@@ -266,7 +266,7 @@ dependencies = [
 [[package]]
 name = "archipel-kit"
 version = "0.3.1"
-source = "git+https://github.com/archipel-dev/kit?branch=main#d48b2a02f9ec0b318a1545333af2d0376e56ff03"
+source = "git+https://github.com/archipel-dev/kit?branch=main#bc92eda27f2d9e2e6c3412efdad4c8c5d3167fc6"
 dependencies = [
  "archipel-icons",
  "egui",
@@ -274,6 +274,7 @@ dependencies = [
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
+ "regex",
  "serde",
 ]
 
